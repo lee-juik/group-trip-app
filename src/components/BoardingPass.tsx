@@ -1,36 +1,22 @@
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { shadow } from '../theme';
+import { G, J } from '../theme';
 import { Flight } from '../types';
 
-/** 항공편을 탑승권 모양으로 보여준다 */
+/** 하늘색 탑승권 카드 */
 export function BoardingPass({ flight, label }: { flight: Flight; label: string }) {
-  const w = 'rgba(255,255,255,0.75)';
+  const blue = '#5A8DB5';
   return (
-    <Animated.View entering={FadeInDown.springify().damping(18)} style={[{ borderRadius: 22, overflow: 'hidden' }, shadow]}>
-      <LinearGradient colors={['#0A2A66', '#1856C8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18, gap: 14 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ color: w, fontSize: 13, fontWeight: '600' }}>✈︎ {label}</Text>
-          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 1 }}>{flight.flightNo}</Text>
+    <Animated.View entering={FadeInDown.springify().damping(18)} style={{ borderRadius: 28, backgroundColor: '#CDEBFF', padding: 18, overflow: 'hidden' }}>
+      <View style={{ position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.35)', right: -30, top: -40 }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ gap: 2 }}>
+          <Text style={{ fontFamily: J, fontSize: 13, color: blue }}>✈️ {label} {flight.flightNo}</Text>
+          <Text style={{ fontFamily: J, fontSize: 30, color: '#3A3550' }}>{flight.depart} → {flight.arrive}</Text>
+          <Text style={{ fontFamily: G, fontSize: 13, color: blue }}>{flight.from} → {flight.to}</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: '#fff', fontSize: 30, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{flight.depart}</Text>
-            <Text style={{ color: w, fontSize: 15, fontWeight: '600' }}>{flight.from}</Text>
-          </View>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ flex: 1, borderTopWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', borderStyle: 'dashed' }} />
-            <Ionicons name="airplane" size={20} color="#fff" />
-            <View style={{ flex: 1, borderTopWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', borderStyle: 'dashed' }} />
-          </View>
-          <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <Text style={{ color: '#fff', fontSize: 30, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{flight.arrive}</Text>
-            <Text style={{ color: w, fontSize: 15, fontWeight: '600' }}>{flight.to}</Text>
-          </View>
-        </View>
-      </LinearGradient>
+        <Text style={{ fontSize: 40 }}>{label.includes('오는') ? '🛬' : '🛫'}</Text>
+      </View>
     </Animated.View>
   );
 }

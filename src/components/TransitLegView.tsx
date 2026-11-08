@@ -1,6 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Linking, Text, View } from 'react-native';
-import { c, font, transitStyle } from '../theme';
+import { c, G, J, transitStyle } from '../theme';
 import { TransitLeg } from '../types';
 import { PressableScale } from './PressableScale';
 
@@ -10,38 +9,25 @@ export function openTransitDirections(from: string, to: string, city: string) {
   Linking.openURL(`https://www.google.com/maps/dir/?api=1&origin=${q(from)}&destination=${q(to)}&travelmode=transit`);
 }
 
-const minutes = (a: string, b: string) => {
+export const minutes = (a: string, b: string) => {
   const m = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
   const d = m(b) - m(a);
   return Number.isFinite(d) && d > 0 ? `${d}분` : '';
 };
 
+/** 일정 사이의 이동: 동글동글한 탈것 칩 */
 export function TransitLegView({ leg, city, onEdit }: { leg: TransitLeg; city: string; onEdit: () => void }) {
   const ts = transitStyle[leg.mode];
   const dur = minutes(leg.depart, leg.arrive);
   return (
-    <PressableScale scaleTo={0.98} onPress={onEdit}
-      style={{ backgroundColor: `${ts.color}14`, borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: `${ts.color}33` }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <View style={{ backgroundColor: ts.color, borderRadius: 8, width: 26, height: 26, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={ts.icon as any} size={15} color="#fff" />
-        </View>
-        <Text style={[font.subhead, { fontWeight: '700', flex: 1 }]} numberOfLines={1}>
-          {leg.mode}{leg.line ? ` · ${leg.line}` : ''}
-        </Text>
-        {!!dur && <Text style={[font.footnote, { fontWeight: '600', color: ts.color }]}>{dur}</Text>}
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Text style={[font.callout, { fontWeight: '700', fontVariant: ['tabular-nums'] }]}>{leg.depart}</Text>
-        <Text style={font.footnote} numberOfLines={1}>{leg.fromStop}</Text>
-        <Ionicons name="arrow-forward" size={13} color={c.label2} />
-        <Text style={[font.callout, { fontWeight: '700', fontVariant: ['tabular-nums'] }]}>{leg.arrive}</Text>
-        <Text style={[font.footnote, { flex: 1 }]} numberOfLines={1}>{leg.toStop}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={font.caption}>{leg.note ?? ''}</Text>
-        <Text style={[font.footnote, { color: c.blue, fontWeight: '600' }]} onPress={() => openTransitDirections(leg.fromStop, leg.toStop, city)}>
-          실시간 시간표 ›
+    <PressableScale scaleTo={0.97} onPress={onEdit} style={{ alignSelf: 'flex-start', backgroundColor: ts.bg, borderRadius: 18, paddingVertical: 9, paddingHorizontal: 14, gap: 3 }}>
+      <Text style={{ fontFamily: J, fontSize: 14, color: ts.fg }}>
+        {ts.emoji} {leg.line || leg.mode} · {leg.depart}→{leg.arrive}{dur ? ` · ${dur}` : ''}
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Text style={{ fontFamily: G, fontSize: 12, color: ts.fg, opacity: 0.8 }}>{leg.fromStop} → {leg.toStop}</Text>
+        <Text style={{ fontFamily: J, fontSize: 12, color: c.ink, textDecorationLine: 'underline' }} onPress={() => openTransitDirections(leg.fromStop, leg.toStop, city)}>
+          실시간 시간표
         </Text>
       </View>
     </PressableScale>

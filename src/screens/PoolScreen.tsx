@@ -1,5 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
@@ -10,37 +8,55 @@ import { HeartButton } from '../components/HeartButton';
 import { LargeHeaderScreen } from '../components/LargeHeaderScreen';
 import { MeButton } from '../components/MeButton';
 import { Pill } from '../components/Pill';
+import { PressableScale } from '../components/PressableScale';
 import { Sheet } from '../components/Sheet';
 import { guessFromSharedText, useTrip } from '../store';
-import { c, categoryStyle, font, shadow } from '../theme';
-import { CATEGORIES, Category } from '../types';
+import { c, categoryStyle, G, J, softShadow, t } from '../theme';
+import { CATEGORIES, Category, PlaceCard } from '../types';
 
-const md = (d: string) => `${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`;
-
-function TripHero() {
+function DdayCard() {
   const { trip } = useTrip().state;
   const first = trip.days[0].date;
-  const last = trip.days[trip.days.length - 1].date;
   const dday = Math.ceil((Date.parse(`${first}T00:00:00`) - Date.now()) / 864e5);
   return (
-    <Animated.View entering={FadeInDown.springify().damping(18)} style={[{ borderRadius: 24, overflow: 'hidden' }, shadow]}>
-      <LinearGradient colors={['#4F8CFF', '#7A5CFF', '#C77DFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, gap: 14 }}>
+    <Animated.View entering={FadeInDown.springify().damping(16)} style={{ borderRadius: 32, padding: 20, backgroundColor: '#F3DDF0', overflow: 'hidden' }}>
+      <View style={{ position: 'absolute', inset: 0, backgroundColor: '#E3D7FF', opacity: 0.6, transform: [{ skewY: '-12deg' }, { translateY: 60 }] } as object} />
+      <View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(255,255,255,0.38)', right: -30, top: -44 }} />
+      <View style={{ position: 'absolute', width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(255,255,255,0.3)', right: 70, bottom: -30 }} />
+      <Text style={{ fontFamily: J, fontSize: 14, color: c.lilacDeep }}>출발까지</Text>
+      <Text style={{ fontFamily: J, fontSize: 48, lineHeight: 54, color: '#fff', textShadowColor: 'rgba(160,110,200,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 0 }}>
+        {dday > 0 ? `D-${dday}` : 'D-DAY'}
+      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <AvatarStack members={trip.members} size={32} />
+        <Text style={{ fontFamily: J, fontSize: 14, color: c.lilacDeep }}>{trip.members.length}명이 함께 가요</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+function PlaceTile({ p, index }: { p: PlaceCard; index: number }) {
+  const { state, dispatch } = useTrip();
+  const cs = categoryStyle[p.category];
+  const members = p.wantedBy.map((id) => state.trip.members.find((m) => m.id === id)!).filter(Boolean);
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 50).springify().damping(16)}
+      layout={LinearTransition.springify().damping(16)}
+      style={{ width: '48%' }}
+    >
+      <PressableScale scaleTo={0.96} style={{ backgroundColor: cs.bg, borderRadius: 28, padding: 14, minHeight: 186, gap: 4 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600' }}>❄️ {trip.city}</Text>
-            <Text style={{ color: '#fff', fontSize: 26, fontWeight: '800' }}>{trip.title}</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15 }}>{md(first)} – {md(last)} · {trip.days.length - 1}박 {trip.days.length}일</Text>
+          <View style={{ width: 54, height: 54, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.75)', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 28 }}>{p.emoji ?? cs.emoji}</Text>
           </View>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center' }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>출발까지</Text>
-            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>{dday > 0 ? `D-${dday}` : 'D-DAY'}</Text>
-          </View>
+          <HeartButton on={p.wantedBy.includes(state.meId)} count={p.wantedBy.length} onPress={() => dispatch({ type: 'toggleWant', placeId: p.id })} />
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <AvatarStack members={trip.members} size={30} />
-          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{trip.members.map((m) => m.name).join(', ')}</Text>
-        </View>
-      </LinearGradient>
+        <Text style={[t.h, { marginTop: 8 }]} numberOfLines={2}>{p.name}</Text>
+        <Text style={t.note} numberOfLines={3}>{p.summary}</Text>
+        <View style={{ flex: 1 }} />
+        {members.length > 0 && <View style={{ marginTop: 6 }}><AvatarStack members={members} size={22} /></View>}
+      </PressableScale>
     </Animated.View>
   );
 }
@@ -48,12 +64,12 @@ function TripHero() {
 export function PoolScreen() {
   const { state, dispatch } = useTrip();
   const { trip, meId } = state;
+  const me = trip.members.find((m) => m.id === meId)!;
   const [filter, setFilter] = useState<Category | '전체'>('전체');
   const [sheet, setSheet] = useState(false);
   const [shared, setShared] = useState('');
   const [draft, setDraft] = useState<ReturnType<typeof guessFromSharedText> | null>(null);
 
-  const member = (id: string) => trip.members.find((m) => m.id === id)!;
   const places = useMemo(
     () => trip.places.filter((p) => filter === '전체' || p.category === filter).sort((a, b) => b.wantedBy.length - a.wantedBy.length),
     [trip.places, filter],
@@ -62,85 +78,55 @@ export function PoolScreen() {
 
   return (
     <>
-      <LargeHeaderScreen title="수집함" right={<MeButton />}>
-        <TripHero />
+      <LargeHeaderScreen greeting={`${me.name} 님, 안녕!`} title={`${trip.city} 가서\n뭐 먹고 뭐 할까? ☃️`} compactTitle="모아보기" right={<MeButton />}>
+        <DdayCard />
 
-        <Button title="인스타 게시물 넣기" icon="logo-instagram" kind="tinted" onPress={() => setSheet(true)} />
+        <Button title="인스타 게시물 넣기" emoji="📮" kind="soft" onPress={() => setSheet(true)} />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }} style={{ marginHorizontal: -16 }} contentInset={{ left: 16, right: 16 }}>
-          <View style={{ width: 8 }} />
-          <Pill label="전체" on={filter === '전체'} onPress={() => setFilter('전체')} color={c.label} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -18 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 18, paddingVertical: 6 }}>
+          <Pill label="전체" on={filter === '전체'} onPress={() => setFilter('전체')} />
           {CATEGORIES.map((k) => (
-            <Pill key={k} label={k} icon={categoryStyle[k].icon} color={categoryStyle[k].color} on={filter === k} onPress={() => setFilter(k)} />
+            <Pill key={k} label={k} emoji={categoryStyle[k].emoji} on={filter === k} onPress={() => setFilter(k)} />
           ))}
-          <View style={{ width: 8 }} />
         </ScrollView>
 
-        {places.map((p, i) => {
-          const cs = categoryStyle[p.category];
-          return (
-            <Animated.View
-              key={p.id}
-              entering={FadeInDown.delay(i * 45).springify().damping(18)}
-              layout={LinearTransition.springify().damping(18)}
-              style={[{ backgroundColor: c.card, borderRadius: 20, padding: 16, gap: 10 }, shadow]}
-            >
-              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: `${cs.color}22`, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name={cs.icon as any} size={22} color={cs.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={font.headline}>{p.name}</Text>
-                  <Text style={font.footnote}>{p.category}{p.area ? ` · ${p.area}` : ''}</Text>
-                </View>
-                <HeartButton on={p.wantedBy.includes(meId)} count={p.wantedBy.length} onPress={() => dispatch({ type: 'toggleWant', placeId: p.id })} />
-              </View>
-              <Text style={[font.subhead, { color: 'rgba(0,0,0,0.75)', lineHeight: 21 }]}>{p.summary}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {p.wantedBy.length > 0 && <AvatarStack members={p.wantedBy.map(member)} size={22} />}
-                <Text style={[font.caption, { flex: 1 }]}>
-                  {member(p.addedBy).name}님이 올림{p.sourceUrl ? ' · 인스타' : ''}
-                </Text>
-              </View>
-            </Animated.View>
-          );
-        })}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 }}>
+          {places.map((p, i) => <PlaceTile key={p.id} p={p} index={i} />)}
+        </View>
+        {places.length === 0 && <Text style={[t.note, { textAlign: 'center', paddingVertical: 30 }]}>아직 비어 있어요. 인스타에서 하나 넣어볼까요?</Text>}
       </LargeHeaderScreen>
 
-      <Sheet visible={sheet} title={draft ? '장소 카드 확인' : '게시물 넣기'} onClose={close}>
+      <Sheet visible={sheet} title={draft ? '이렇게 만들까요? ✨' : '게시물 넣기 📮'} onClose={close}>
         {!draft ? (
           <>
-            <Text style={font.footnote}>인스타에서 링크와 캡션을 복사해 붙여넣으면 장소 카드로 만들어요.</Text>
-            <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14 }}>
+            <Text style={t.note}>인스타에서 링크와 캡션을 복사해서 붙여넣으면 장소 카드로 만들어 줄게요.</Text>
+            <View style={{ backgroundColor: '#fff', borderRadius: 22, padding: 16 }}>
               <TextInput
                 multiline
                 autoFocus
                 placeholder={'📍스프카레 가라쿠 삿포로 오면 꼭 가야하는 맛집\nhttps://instagram.com/p/...'}
-                placeholderTextColor={c.label3}
+                placeholderTextColor={c.faint}
                 value={shared}
                 onChangeText={setShared}
-                style={{ fontSize: 16, minHeight: 100, color: c.label, textAlignVertical: 'top' }}
+                style={{ fontFamily: G, fontSize: 16, minHeight: 110, color: c.ink, textAlignVertical: 'top', outlineStyle: 'none' } as object}
               />
             </View>
-            <Button title="카드 만들기" icon="sparkles" disabled={!shared.trim()} onPress={() => setDraft(guessFromSharedText(shared))} />
+            <Button title="카드 만들기" emoji="✨" disabled={!shared.trim()} onPress={() => setDraft(guessFromSharedText(shared))} />
           </>
         ) : (
-          <Animated.View entering={FadeInDown.springify().damping(18)} style={{ gap: 12 }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, gap: 8 }}>
-              <TextInput value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} style={[font.title3, { paddingVertical: 2 }]} />
-              <TextInput value={draft.summary} multiline onChangeText={(summary) => setDraft({ ...draft, summary })} style={[font.subhead, { color: c.label2 }]} />
+          <Animated.View entering={FadeInDown.springify().damping(16)} style={{ gap: 12 }}>
+            <View style={{ backgroundColor: categoryStyle[draft.category].bg, borderRadius: 28, padding: 18, gap: 6 }}>
+              <Text style={{ fontSize: 32 }}>{categoryStyle[draft.category].emoji}</Text>
+              <TextInput value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} style={[t.title, { paddingVertical: 2 }]} />
+              <TextInput value={draft.summary} multiline onChangeText={(summary) => setDraft({ ...draft, summary })} style={t.body} />
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {CATEGORIES.map((k) => (
-                <Pill key={k} label={k} icon={categoryStyle[k].icon} color={categoryStyle[k].color} on={draft.category === k} onPress={() => setDraft({ ...draft, category: k })} />
+                <Pill key={k} label={k} emoji={categoryStyle[k].emoji} on={draft.category === k} onPress={() => setDraft({ ...draft, category: k })} />
               ))}
             </View>
-            <Button
-              title="수집함에 추가"
-              icon="add-circle"
-              disabled={!draft.name.trim()}
-              onPress={() => { success(); dispatch({ type: 'addPlace', place: { ...draft, area: '' } }); close(); }}
-            />
+            <Button title="수집함에 쏙 넣기" emoji="📌" disabled={!draft.name.trim()}
+              onPress={() => { success(); dispatch({ type: 'addPlace', place: { ...draft, area: '' } }); close(); }} />
           </Animated.View>
         )}
       </Sheet>

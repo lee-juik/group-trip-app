@@ -15,6 +15,7 @@ export interface PlaceCard {
   summary: string;
   area: string;
   sourceUrl?: string;
+  emoji?: string;
   addedBy: string; // member id
   wantedBy: string[]; // member ids who pressed "가고 싶다"
 }

@@ -9,7 +9,7 @@ export function MeButton() {
   const me = state.trip.members.find((m) => m.id === state.meId)!;
   return (
     <PressableScale onPress={openMembers} hitSlop={8}>
-      <Avatar member={me} size={32} />
+      <Avatar member={me} size={38} />
     </PressableScale>
   );
 }

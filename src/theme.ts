@@ -1,60 +1,66 @@
 import { Platform } from 'react-native';
 import { Category, TransitMode } from './types';
 
-// iOS 시스템 색상에 맞춘 팔레트
+export const J = 'Jua_400Regular';
+export const G = 'GowunDodum_400Regular';
+
+// 파스텔 팔레트
 export const c = {
-  bg: '#F2F2F7',
+  bgTop: '#FFF4EC',
+  bgMid: '#F6F0FF',
+  bgBottom: '#EEF8FF',
+  ink: '#3A3550',
+  sub: '#8E87A8',
+  faint: '#B3ADC8',
+  line: '#ECE6F7',
   card: '#FFFFFF',
-  label: '#000000',
-  label2: 'rgba(60,60,67,0.6)',
-  label3: 'rgba(60,60,67,0.3)',
-  sep: 'rgba(60,60,67,0.12)',
-  fill: 'rgba(118,118,128,0.12)',
-  blue: '#007AFF',
-  blueSoft: 'rgba(0,122,255,0.12)',
-  green: '#34C759',
-  orange: '#FF9500',
-  red: '#FF3B30',
-  pink: '#FF2D55',
-  purple: '#AF52DE',
-  teal: '#30B0C7',
-  indigo: '#5856D6',
+  sheet: '#FBF8FF',
+  pink: '#FF6F91',
+  pinkSoft: '#FFE3EC',
+  lilac: '#E8DEFF',
+  lilacDeep: '#8A6FB3',
+  peach: '#FFE4D6',
+  mint: '#DDF5E8',
+  sky: '#DCEBFF',
+  butter: '#FFF1C2',
+  green: '#2F8A5F',
+  orange: '#C0663D',
 };
 
-export const shadow = Platform.select({
-  web: { boxShadow: '0 6px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)' } as object,
-  default: { shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+export const bgGradient = [c.bgTop, c.bgMid, c.bgBottom] as const;
+
+export const softShadow = Platform.select({
+  web: { boxShadow: '0 4px 0 rgba(120,100,180,0.08), 0 10px 24px rgba(120,100,180,0.08)' } as object,
+  default: { shadowColor: '#7864B4', shadowOpacity: 0.12, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
 });
 
-export const font = {
-  largeTitle: { fontSize: 34, fontWeight: '800' as const, letterSpacing: 0.3, color: c.label },
-  title2: { fontSize: 22, fontWeight: '700' as const, color: c.label },
-  title3: { fontSize: 20, fontWeight: '600' as const, color: c.label },
-  headline: { fontSize: 17, fontWeight: '600' as const, color: c.label },
-  body: { fontSize: 17, color: c.label },
-  callout: { fontSize: 16, color: c.label },
-  subhead: { fontSize: 15, color: c.label },
-  footnote: { fontSize: 13, color: c.label2 },
-  caption: { fontSize: 12, color: c.label2 },
+export const t = {
+  hero: { fontFamily: J, fontSize: 30, lineHeight: 38, color: c.ink },
+  title: { fontFamily: J, fontSize: 22, color: c.ink },
+  h: { fontFamily: J, fontSize: 18, color: c.ink },
+  label: { fontFamily: J, fontSize: 15, color: c.ink },
+  small: { fontFamily: J, fontSize: 13, color: c.faint },
+  body: { fontFamily: G, fontSize: 15, lineHeight: 21, color: c.ink },
+  note: { fontFamily: G, fontSize: 13, lineHeight: 18, color: c.sub },
 };
 
-export const categoryStyle: Record<Category, { icon: string; color: string }> = {
-  맛집: { icon: 'restaurant', color: c.orange },
-  카페: { icon: 'cafe', color: '#A2845E' },
-  관광지: { icon: 'camera', color: c.teal },
-  숙소: { icon: 'bed', color: c.indigo },
-  교통: { icon: 'car', color: c.green },
-  쇼핑: { icon: 'bag-handle', color: c.pink },
+export const categoryStyle: Record<Category, { emoji: string; bg: string }> = {
+  맛집: { emoji: '🍜', bg: c.peach },
+  카페: { emoji: '☕', bg: c.butter },
+  관광지: { emoji: '📸', bg: c.sky },
+  숙소: { emoji: '🛏', bg: c.lilac },
+  교통: { emoji: '🚃', bg: c.mint },
+  쇼핑: { emoji: '🛍', bg: '#FFDDEB' },
 };
 
-export const transitStyle: Record<TransitMode, { icon: string; color: string }> = {
-  JR: { icon: 'train', color: c.green },
-  지하철: { icon: 'subway', color: c.blue },
-  버스: { icon: 'bus', color: c.orange },
-  도보: { icon: 'walk', color: c.label2 },
-  택시: { icon: 'car', color: '#F5B400' },
-  렌트카: { icon: 'car-sport', color: c.purple },
+export const transitStyle: Record<TransitMode, { emoji: string; bg: string; fg: string }> = {
+  JR: { emoji: '🚃', bg: c.mint, fg: '#2F8A5F' },
+  지하철: { emoji: '🚇', bg: c.sky, fg: '#3B74B0' },
+  버스: { emoji: '🚌', bg: c.peach, fg: '#C0663D' },
+  도보: { emoji: '🚶', bg: '#F1EEF8', fg: '#6C6588' },
+  택시: { emoji: '🚕', bg: c.butter, fg: '#A07A12' },
+  렌트카: { emoji: '🚗', bg: c.lilac, fg: '#6B52B5' },
 };
 
-const avatarColors = [c.blue, c.pink, c.orange, c.green, c.purple, c.teal];
+const avatarColors = ['#FFB38A', '#8FD9B6', '#B9A2FF', '#8CCBFF', '#FF9EB8', '#FFD36E'];
 export const avatarColor = (id: string) => avatarColors[[...id].reduce((s, ch) => s + ch.charCodeAt(0), 0) % avatarColors.length];
