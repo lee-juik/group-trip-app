@@ -26,6 +26,7 @@ jobs:
       - run: npx expo export --platform web --output-dir web
         env:
           CI: 1
+          EXPO_BASE_URL: /group-trip-app
       - run: cp web/index.html web/404.html && touch web/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
