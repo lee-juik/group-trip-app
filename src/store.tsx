@@ -20,6 +20,8 @@ export type Action =
   | { type: 'closeVote'; voteId: string }
   | { type: 'addPlanItem'; dayIndex: number; time: string; title: string; placeId?: string }
   | { type: 'removePlanItem'; dayIndex: number; itemId: string }
+  | { type: 'addPlanItems'; dayIndex: number; items: { time: string; title: string; placeId?: string }[] }
+  | { type: 'reorderDay'; dayIndex: number; changes: { itemId: string; time: string; clearTransit: boolean }[] }
   | { type: 'setTransit'; dayIndex: number; itemId: string; leg: TransitLeg | undefined }
   | { type: 'setFlight'; dayIndex: number; direction: 'outbound' | 'inbound'; flight: Flight };
 
@@ -95,6 +97,22 @@ function reducer(state: State, action: Action): State {
         ),
       });
 
+    case 'addPlanItems':
+      return update({
+        days: trip.days.map((d, i) => (i !== action.dayIndex ? d : { ...d, items: sortByTime([...d.items, ...action.items.map((x) => ({ id: newId('i'), ...x }))]) })),
+      });
+
+    case 'reorderDay':
+      return update({
+        days: trip.days.map((d, i) => {
+          if (i !== action.dayIndex) return d;
+          return { ...d, items: sortByTime(d.items.map((it) => {
+            const ch = action.changes.find((c) => c.itemId === it.id);
+            return ch ? { ...it, time: ch.time, transitIn: ch.clearTransit ? undefined : it.transitIn } : it;
+          })) };
+        }),
+      });
+
     case 'removePlanItem':
       return update({
         days: trip.days.map((d, i) => (i !== action.dayIndex ? d : { ...d, items: d.items.filter((it) => it.id !== action.itemId) })),
@@ -150,7 +168,7 @@ async function sendToServer(state: State, a: Action) {
       if (!placeId) {
         const r = await supabase.from('places').insert({
           trip_id: trip.id, name: a.place.name, category: a.place.category, summary: a.place.summary, area: a.place.area,
-          source_url: a.place.sourceUrl ?? null, emoji: a.place.emoji ?? null, added_by: meId,
+          source_url: a.place.sourceUrl ?? null, emoji: a.place.emoji ?? null, lat: a.place.lat ?? null, lng: a.place.lng ?? null, added_by: meId,
         }).select('id').single();
         ok(r);
         placeId = r.data!.id;
@@ -173,6 +191,13 @@ async function sendToServer(state: State, a: Action) {
       return ok(await supabase.from('votes').update({ closed: true }).eq('id', a.voteId));
     case 'addPlanItem':
       return ok(await supabase.from('plan_items').insert({ trip_id: trip.id, day_id: dayId(a.dayIndex), time: a.time, title: a.title, place_id: a.placeId ?? null }));
+    case 'addPlanItems':
+      return ok(await supabase.from('plan_items').insert(a.items.map((x) => ({ trip_id: trip.id, day_id: dayId(a.dayIndex), time: x.time, title: x.title, place_id: x.placeId ?? null }))));
+    case 'reorderDay':
+      for (const ch of a.changes) {
+        ok(await supabase.from('plan_items').update(ch.clearTransit ? { time: ch.time, transit_in: null } : { time: ch.time }).eq('id', ch.itemId));
+      }
+      return;
     case 'removePlanItem':
       return ok(await supabase.from('plan_items').delete().eq('id', a.itemId));
     case 'setTransit':

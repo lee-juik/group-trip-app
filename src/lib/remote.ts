@@ -47,7 +47,7 @@ export async function loadTrip(tripId: string, userId: string): Promise<{ trip: 
     places: (must(places) ?? []).map(
       (p): PlaceCard => ({
         id: p.id, name: p.name, category: p.category as Category, summary: p.summary, area: p.area,
-        sourceUrl: p.source_url ?? undefined, emoji: p.emoji ?? undefined, addedBy: p.added_by, wantedBy: wantMap[p.id] ?? [],
+        sourceUrl: p.source_url ?? undefined, emoji: p.emoji ?? undefined, lat: p.lat ?? undefined, lng: p.lng ?? undefined, addedBy: p.added_by, wantedBy: wantMap[p.id] ?? [],
       }),
     ),
     votes: (must(votes) ?? []).map((v): Vote => {

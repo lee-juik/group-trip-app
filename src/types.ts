@@ -16,6 +16,8 @@ export interface PlaceCard {
   area: string;
   sourceUrl?: string;
   emoji?: string;
+  lat?: number;
+  lng?: number;
   addedBy: string; // member id
   wantedBy: string[]; // member ids who pressed "가고 싶다"
 }

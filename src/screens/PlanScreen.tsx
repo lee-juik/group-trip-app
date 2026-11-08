@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
+import { mapsRoute, optimizeDay, planNewStops, Reorder } from '../lib/route';
 import Animated, { FadeInDown, FadeInRight, LinearTransition } from 'react-native-reanimated';
 import { BoardingPass } from '../components/BoardingPass';
 import { Button } from '../components/Button';
@@ -20,7 +21,7 @@ const MODES: TransitMode[] = ['JR', '지하철', '버스', '도보', '택시', '
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 const DOT_COLORS = ['#FFE4D6', '#E8DEFF', '#FFF1C2', '#DCEBFF', '#DDF5E8'];
 
-type SheetState = { kind: 'add' } | { kind: 'leg'; itemId: string } | { kind: 'flight'; direction: 'outbound' | 'inbound' } | null;
+type SheetState = { kind: 'route'; r: Reorder } | { kind: 'add' } | { kind: 'leg'; itemId: string } | { kind: 'flight'; direction: 'outbound' | 'inbound' } | null;
 
 export function PlanScreen() {
   const { state, dispatch } = useTrip();
@@ -43,12 +44,28 @@ export function PlanScreen() {
     setLeg(initial ?? { mode: '지하철', depart: '', arrive: '', fromStop: prevTitle, toStop: title });
     setSheet({ kind: 'leg', itemId });
   };
-  const close = () => setSheet(null);
+  const close = () => { setSheet(null); setPicked([]); };
+  const [picked, setPicked] = useState<string[]>([]);
+  const route = day ? mapsRoute(trip, day) : undefined;
+  const togglePick = (id: string) => setPicked((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+  const addPicked = () => {
+    const ps = picked.map((id) => trip.places.find((p) => p.id === id)!).filter(Boolean);
+    if (ps.length === 1) dispatch({ type: 'addPlanItem', dayIndex, time, title: ps[0].name, placeId: ps[0].id });
+    else dispatch({ type: 'addPlanItems', dayIndex, items: planNewStops(trip, dayIndex, ps, time) });
+    success(); close();
+  };
 
   return (
     <>
       <LargeHeaderScreen greeting={`${trip.days.length - 1}박 ${trip.days.length}일`} title="우리의 일정 📅" compactTitle="일정" right={<MeButton />}>
         <DayTabs options={trip.days.map((d, i) => `${i + 1}일 · ${md(d.date)}`)} index={dayIndex} onChange={setDayIndex} />
+
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button title="동선 정리" emoji="🧭" kind="soft" style={{ flex: 1, paddingVertical: 11 }} disabled={day.items.length < 2}
+            onPress={() => setSheet({ kind: 'route', r: optimizeDay(trip, dayIndex) })} />
+          <Button title="지도로 보기" emoji="🗺" kind="soft" style={{ flex: 1, paddingVertical: 11 }} disabled={!route}
+            onPress={() => route && Linking.openURL(route)} />
+        </View>
 
         <Animated.View key={day.date} entering={FadeInRight.springify().damping(18)} style={{ gap: 14 }}>
           {isFirst && (day.outbound
@@ -114,13 +131,14 @@ export function PlanScreen() {
       </LargeHeaderScreen>
 
       <Sheet visible={sheet?.kind === 'add'} title={`${dayIndex + 1}일차에 넣기`} onClose={close}>
-        <Group><Field label="⏰ 시간" value={time} onChangeText={setTime} placeholder="12:00" last /></Group>
+        <Group><Field label="⏰ 시작" value={time} onChangeText={setTime} placeholder="12:00" last /></Group>
+        <Text style={[t.note, { marginHorizontal: 6 }]}>여러 곳을 고르면 숙소에서 가까운 순서로 동선을 짜서 시간까지 넣어줘요.</Text>
         <Group label="수집함 후보 (가고 싶은 사람 많은 순)">
           {candidates.length === 0 && <Text style={[t.note, { padding: 16 }]}>남은 후보가 없어요.</Text>}
           {candidates.map((p, i) => (
             <PressableScale key={p.id} scaleTo={0.98}
-              onPress={() => { success(); dispatch({ type: 'addPlanItem', dayIndex, time, title: p.name, placeId: p.id }); close(); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderTopWidth: i ? 1.5 : 0, borderColor: c.line }}>
+              onPress={() => togglePick(p.id)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderTopWidth: i ? 1.5 : 0, borderColor: c.line, backgroundColor: picked.includes(p.id) ? c.pinkSoft : 'transparent' }}>
               <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: categoryStyle[p.category].bg, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 20 }}>{p.emoji ?? categoryStyle[p.category].emoji}</Text>
               </View>
@@ -128,10 +146,41 @@ export function PlanScreen() {
                 <Text style={t.label}>{p.name}</Text>
                 <Text style={[t.note, { fontSize: 12 }]}>{p.category} · ♥ {p.wantedBy.length}명</Text>
               </View>
-              <Text style={{ fontFamily: J, fontSize: 22, color: c.ink }}>＋</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: picked.includes(p.id) ? c.pink : '#F4F1FA', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontFamily: J, fontSize: 14, color: picked.includes(p.id) ? '#fff' : c.faint }}>{picked.includes(p.id) ? String(picked.indexOf(p.id) + 1) : '＋'}</Text>
+              </View>
             </PressableScale>
           ))}
         </Group>
+        <Button title={picked.length > 1 ? `${picked.length}곳 동선대로 넣기` : picked.length === 1 ? '일정에 넣기' : '갈 곳을 골라주세요'} emoji={picked.length > 1 ? '🧭' : '📌'}
+          disabled={!picked.length} onPress={addPicked} />
+      </Sheet>
+
+      <Sheet visible={sheet?.kind === 'route'} title="동선 정리 🧭" onClose={close}>
+        {sheet?.kind === 'route' && (sheet.r.changes.length === 0 ? (
+          <View style={{ alignItems: 'center', gap: 6, paddingVertical: 20 }}>
+            <Text style={{ fontSize: 40 }}>👍</Text>
+            <Text style={t.h}>지금 순서가 이미 제일 가까워요!</Text>
+            <Text style={t.note}>하루 이동 거리 약 {sheet.r.before.toFixed(1)}km</Text>
+          </View>
+        ) : (
+          <>
+            <View style={{ backgroundColor: c.mint, borderRadius: 22, padding: 16, gap: 2 }}>
+              <Text style={[t.h, { color: c.green }]}>이동 거리 {sheet.r.before.toFixed(1)}km → {sheet.r.after.toFixed(1)}km</Text>
+              <Text style={t.note}>밥, 숙소, 셔틀처럼 시간이 정해진 일정은 그대로 두고, 나머지 순서만 바꿨어요.</Text>
+            </View>
+            <Group>
+              {sheet.r.preview.map((x, i) => (
+                <View key={i} style={{ flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: i ? 1.5 : 0, borderColor: c.line, backgroundColor: x.moved ? c.butter : 'transparent' }}>
+                  <Text style={[t.label, { width: 48, color: c.sub }]}>{x.time}</Text>
+                  <Text style={[t.label, { flex: 1 }]}>{x.title}{x.moved ? '  ↕' : ''}</Text>
+                </View>
+              ))}
+            </Group>
+            <Text style={[t.note, { marginHorizontal: 6 }]}>순서가 바뀐 곳의 이동 정보(전철 시간)는 지워져요. 다시 넣어주세요.</Text>
+            <Button title="이 순서로 바꾸기" emoji="✨" onPress={() => { success(); dispatch({ type: 'reorderDay', dayIndex, changes: sheet.r.changes }); close(); }} />
+          </>
+        ))}
       </Sheet>
 
       <Sheet visible={sheet?.kind === 'leg'} title="어떻게 갈까요? 🚃" onClose={close}>
