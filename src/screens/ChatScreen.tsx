@@ -90,7 +90,13 @@ export function ChatScreen({ chat }: { chat: ReturnType<typeof useChat> }) {
           }
           const mine = r.m.memberId === meId;
           const who = name(r.m.memberId);
-          const time = r.last ? <Text style={{ fontFamily: G, fontSize: 10, color: c.faint, marginBottom: 2, flexShrink: 0 }}>{r.m.pending ? '보내는 중' : r.m.id.startsWith('fail-') ? '⚠️ 실패' : hm(r.m.createdAt)}</Text> : null;
+          const left = r.m.pending || r.m.id.startsWith('fail-') ? 0 : chat.unreadCount(r.m);
+          const time = (r.last || left > 0) ? (
+            <View style={{ alignItems: mine ? 'flex-end' : 'flex-start', marginBottom: 2, flexShrink: 0 }}>
+              {left > 0 && <Text style={{ fontFamily: J, fontSize: 11, color: c.pink }}>{left}</Text>}
+              {r.last && <Text style={{ fontFamily: G, fontSize: 10, color: c.faint }}>{r.m.pending ? '보내는 중' : r.m.id.startsWith('fail-') ? '⚠️ 실패' : hm(r.m.createdAt)}</Text>}
+            </View>
+          ) : null;
           return (
             <Animated.View entering={FadeInUp.springify().damping(18)} style={{ flexDirection: 'row', justifyContent: mine ? 'flex-end' : 'flex-start', marginTop: r.first ? 10 : 3, gap: 6 }}>
               {!mine && <View style={{ width: 34 }}>{r.first && who && <Avatar member={who} size={34} />}</View>}

@@ -30,7 +30,7 @@ function Shell() {
   const demo = mode === 'demo';
   const [copied, setCopied] = useState(false);
   const chat = useChat();
-  const unread = useUnread(chat.messages, state.meId, state.trip.id, tab === 'chat');
+  const unread = useUnread(chat, tab === 'chat');
   const pendingVotes = state.trip.votes.filter((v) => !v.closed && !v.myChoice).length;
   const code = state.trip.inviteCode ?? '';
   const invite = `${state.trip.title} 같이 짜자! ✈️\n앱에서 초대 코드 ${code} 를 입력해줘`;

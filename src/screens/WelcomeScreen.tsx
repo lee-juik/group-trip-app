@@ -80,6 +80,7 @@ export function WelcomeScreen() {
                   <Field placeholder="예: C9FF09" value={code} onChangeText={(s) => setCode(s.toUpperCase())} autoCapitalize="characters" autoCorrect={false} maxLength={6}
                     style={{ fontFamily: J, fontSize: 24, letterSpacing: 6 }} last />
                 </Group>
+                <Text style={[t.note, { textAlign: 'center' }]}>전에 들어왔던 방이면 같은 이름을 쓰세요. 새로 생기지 않고 그대로 이어져요.</Text>
                 <Button title={busy ? '들어가는 중…' : '여행방 들어가기'} emoji="🚪" disabled={!canJoin || busy} onPress={() => run(() => join(code.trim(), name.trim()))} />
               </Animated.View>
             ) : (

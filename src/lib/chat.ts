@@ -1,5 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession, useTrip } from '../store';
 import { supabase } from './supabase';
 
@@ -24,6 +23,12 @@ export function useChat() {
   const demo = mode === 'demo';
   const [messages, setMessages] = useState<ChatMessage[]>(() => (demo ? demoMessages() : []));
   const [loaded, setLoaded] = useState(demo);
+  // 멤버별 '어디까지 읽었나' (카톡의 안 읽은 숫자용)
+  const [reads, setReads] = useState<Record<string, string>>((): Record<string, string> => {
+    if (!demo) return {};
+    const t = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+    return { m2: t(39), m3: t(170), m4: t(60) };
+  });
 
   useEffect(() => {
     if (demo) return;
@@ -34,7 +39,14 @@ export function useChat() {
       if (alive && data) { setMessages(data.map(map).reverse()); setLoaded(true); }
     };
     load();
+    supabase.from('chat_reads').select('member_id,last_read_at').eq('trip_id', tripId).then(({ data }) => {
+      if (alive && data) setReads((r) => ({ ...Object.fromEntries(data.map((x) => [x.member_id, x.last_read_at])), ...pickNewer(r, data) }));
+    });
     const ch = supabase.channel(`chat-${tripId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `trip_id=eq.${tripId}` }, (p) => {
+        const row = p.new as { member_id?: string; last_read_at?: string };
+        if (row.member_id && row.last_read_at) setReads((r) => (ms(r[row.member_id!]) >= ms(row.last_read_at!) ? r : { ...r, [row.member_id!]: row.last_read_at! }));
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `trip_id=eq.${tripId}` }, (p) => {
         const m = map(p.new as never);
         setMessages((xs) => {
@@ -65,19 +77,33 @@ export function useChat() {
     if (error) throw new Error(error.message);
   }, [demo, tripId, meId]);
 
-  return { messages, loaded, send, meId };
+  /** 내가 여기까지 읽었다고 저장 (더 최신일 때만) */
+  const markRead = useCallback((ts: string) => {
+    setReads((r) => {
+      if (ms(r[meId]) >= ms(ts)) return r;
+      if (!demo) supabase.from('chat_reads').upsert({ trip_id: tripId, member_id: meId, last_read_at: ts }).then(() => {});
+      return { ...r, [meId]: ts };
+    });
+  }, [demo, tripId, meId]);
+
+  /** 이 메시지를 아직 안 읽은 사람 수 (보낸 사람 빼고) */
+  const unreadCount = useCallback((m: ChatMessage) =>
+    state.trip.members.filter((x) => x.id !== m.memberId && ms(reads[x.id]) < ms(m.createdAt)).length,
+  [reads, state.trip.members]);
+
+  return { messages, loaded, send, meId, reads, markRead, unreadCount };
 }
 
-/** 안 읽은 메시지 수 (탭 배지용). 마지막으로 본 시각을 폰에 저장 */
-export function useUnread(messages: ChatMessage[], meId: string, tripId: string, viewing: boolean) {
-  const key = `chatSeen:${tripId}`;
-  const [seen, setSeen] = useState<string | null>(null);
-  const ready = useRef(false);
-  useEffect(() => { AsyncStorage.getItem(key).then((v) => { setSeen(v ?? new Date(0).toISOString()); ready.current = true; }); }, [key]);
-  const last = messages[messages.length - 1]?.createdAt;
-  useEffect(() => {
-    if (viewing && last && ready.current) { setSeen(last); AsyncStorage.setItem(key, last); }
-  }, [viewing, last, key]);
-  if (!seen) return 0;
-  return messages.filter((m) => m.memberId !== meId && m.createdAt > seen).length;
+const ms = (s?: string) => (s ? Date.parse(s) : 0);
+const pickNewer = (local: Record<string, string>, rows: { member_id: string; last_read_at: string }[]) =>
+  Object.fromEntries(Object.entries(local).filter(([k, v]) => !rows.some((x) => x.member_id === k && ms(x.last_read_at) >= ms(v))));
+
+/** 탭 배지: 내가 아직 안 읽은 남의 메시지 수 */
+export function useUnread(chat: ReturnType<typeof useChat>, viewing: boolean) {
+  const last = [...chat.messages].reverse().find((m) => !m.pending)?.createdAt;
+  const { markRead } = chat;
+  useEffect(() => { if (viewing && last) markRead(last); }, [viewing, last, markRead]);
+  const mine = chat.reads[chat.meId];
+  return chat.messages.filter((m) => m.memberId !== chat.meId && !m.pending && ms(mine) < ms(m.createdAt)).length;
 }
+
