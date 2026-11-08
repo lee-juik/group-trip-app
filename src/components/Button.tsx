@@ -1,14 +1,23 @@
-import { Pressable, Text, ViewStyle } from 'react-native';
-import { colors, ui } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleProp, Text, ViewStyle } from 'react-native';
+import { c } from '../theme';
+import { PressableScale } from './PressableScale';
 
-export function Button({ title, onPress, disabled, style, ghost }: { title: string; onPress: () => void; disabled?: boolean; style?: ViewStyle; ghost?: boolean }) {
+type Kind = 'filled' | 'tinted' | 'plain';
+
+export function Button({ title, icon, onPress, disabled, kind = 'filled', color = c.blue, style }: {
+  title: string; icon?: keyof typeof Ionicons.glyphMap; onPress: () => void; disabled?: boolean; kind?: Kind; color?: string; style?: StyleProp<ViewStyle>;
+}) {
+  const bg = kind === 'filled' ? color : kind === 'tinted' ? `${color}1F` : 'transparent';
+  const fg = kind === 'filled' ? '#fff' : color;
   return (
-    <Pressable
-      onPress={onPress}
+    <PressableScale
       disabled={disabled}
-      style={[ui.btn, ghost && { backgroundColor: colors.primarySoft }, disabled && { opacity: 0.4 }, style]}
+      onPress={onPress}
+      style={[{ backgroundColor: bg, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: disabled ? 0.35 : 1 }, style]}
     >
-      <Text style={[ui.btnText, ghost && { color: colors.primary }]}>{title}</Text>
-    </Pressable>
+      {icon && <Ionicons name={icon} size={18} color={fg} />}
+      <Text style={{ color: fg, fontSize: 17, fontWeight: '600' }}>{title}</Text>
+    </PressableScale>
   );
 }

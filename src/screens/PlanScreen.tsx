@@ -1,85 +1,43 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Text, View } from 'react-native';
+import Animated, { FadeInDown, FadeInRight, LinearTransition } from 'react-native-reanimated';
+import { BoardingPass } from '../components/BoardingPass';
 import { Button } from '../components/Button';
-import { Chip } from '../components/Chip';
+import { Field, Group } from '../components/Field';
+import { success } from '../components/haptics';
+import { LargeHeaderScreen } from '../components/LargeHeaderScreen';
+import { MeButton } from '../components/MeButton';
+import { Pill } from '../components/Pill';
+import { PressableScale } from '../components/PressableScale';
+import { Segmented } from '../components/Segmented';
+import { Sheet } from '../components/Sheet';
 import { TransitLegView } from '../components/TransitLegView';
 import { useTrip } from '../store';
-import { colors, ui } from '../theme';
-import { Flight, PlanItem, TransitLeg, TransitMode } from '../types';
+import { c, categoryStyle, font, shadow, transitStyle } from '../theme';
+import { Flight, TransitLeg, TransitMode } from '../types';
 
 const MODES: TransitMode[] = ['JR', '지하철', '버스', '도보', '택시', '렌트카'];
 const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
-const dayLabel = (date: string, i: number) => {
+const short = (date: string) => {
   const d = new Date(`${date}T00:00:00`);
-  return `${i + 1}일차 ${d.getMonth() + 1}/${d.getDate()}(${WEEK[d.getDay()]})`;
+  return `${d.getMonth() + 1}/${d.getDate()} ${WEEK[d.getDay()]}`;
 };
 
-function FlightCard({ flight, label }: { flight: Flight; label: string }) {
-  return (
-    <View style={[ui.card, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
-      <Text style={ui.sub}>✈️ {label} · {flight.flightNo}</Text>
-      <Text style={ui.h2}>
-        {flight.from} {flight.depart} → {flight.to} {flight.arrive}
-      </Text>
-    </View>
-  );
-}
-
-function FlightForm({ onSave, onCancel }: { onSave: (f: Flight) => void; onCancel: () => void }) {
-  const [f, setF] = useState<Flight>({ flightNo: '', from: '', to: '', depart: '', arrive: '' });
-  const field = (k: keyof Flight, ph: string) => (
-    <TextInput style={[ui.input, { flex: 1 }]} placeholder={ph} placeholderTextColor={colors.sub} value={f[k]} onChangeText={(v) => setF({ ...f, [k]: v })} />
-  );
-  return (
-    <View style={ui.card}>
-      <Text style={ui.h2}>항공편 입력</Text>
-      <Text style={ui.sub}>항공권 사진에서 자동으로 읽어오는 기능은 다음 단계에서 붙일 예정이에요.</Text>
-      {field('flightNo', '편명 (예: KE765)')}
-      <View style={ui.row}>{field('from', '출발 공항')}{field('depart', '출발 09:00')}</View>
-      <View style={ui.row}>{field('to', '도착 공항')}{field('arrive', '도착 12:10')}</View>
-      <View style={ui.row}>
-        <Button title="취소" ghost style={{ flex: 1 }} onPress={onCancel} />
-        <Button title="저장" style={{ flex: 1 }} disabled={!f.flightNo || !f.depart || !f.arrive} onPress={() => onSave(f)} />
-      </View>
-    </View>
-  );
-}
-
-function TransitForm({ initial, prevTitle, item, onSave, onRemove, onCancel }: {
-  initial?: TransitLeg; prevTitle: string; item: PlanItem;
-  onSave: (l: TransitLeg) => void; onRemove: () => void; onCancel: () => void;
-}) {
-  const [l, setL] = useState<TransitLeg>(initial ?? { mode: '지하철', depart: '', arrive: '', fromStop: prevTitle, toStop: item.title });
-  const field = (k: 'line' | 'depart' | 'arrive' | 'fromStop' | 'toStop' | 'note', ph: string) => (
-    <TextInput style={[ui.input, { flex: 1 }]} placeholder={ph} placeholderTextColor={colors.sub} value={l[k] ?? ''} onChangeText={(v) => setL({ ...l, [k]: v })} />
-  );
-  return (
-    <View style={[ui.card, { marginLeft: 22, borderColor: colors.primary }]}>
-      <Text style={ui.h2}>이동 방법</Text>
-      <View style={[ui.row, { flexWrap: 'wrap' }]}>
-        {MODES.map((m) => <Chip key={m} label={m} on={l.mode === m} onPress={() => setL({ ...l, mode: m })} />)}
-      </View>
-      {field('line', '노선 (예: 난보쿠선, 쾌속 에어포트)')}
-      <View style={ui.row}>{field('fromStop', '타는 곳')}{field('depart', '출발 14:10')}</View>
-      <View style={ui.row}>{field('toStop', '내리는 곳')}{field('arrive', '도착 14:14')}</View>
-      {field('note', '메모 (예: 15분 간격)')}
-      <View style={ui.row}>
-        {initial && <Button title="삭제" ghost style={{ flex: 1 }} onPress={onRemove} />}
-        <Button title="취소" ghost style={{ flex: 1 }} onPress={onCancel} />
-        <Button title="저장" style={{ flex: 1 }} disabled={!l.depart || !l.arrive} onPress={() => onSave(l)} />
-      </View>
-    </View>
-  );
-}
+type SheetState =
+  | { kind: 'add' }
+  | { kind: 'leg'; itemId: string; initial: TransitLeg }
+  | { kind: 'flight'; direction: 'outbound' | 'inbound' }
+  | null;
 
 export function PlanScreen() {
   const { state, dispatch } = useTrip();
   const { trip } = state;
   const [dayIndex, setDayIndex] = useState(0);
-  const [adding, setAdding] = useState(false);
+  const [sheet, setSheet] = useState<SheetState>(null);
   const [time, setTime] = useState('12:00');
-  const [editingLeg, setEditingLeg] = useState<string | null>(null);
-  const [flightForm, setFlightForm] = useState<'outbound' | 'inbound' | null>(null);
+  const [leg, setLeg] = useState<TransitLeg | null>(null);
+  const [flight, setFlight] = useState<Flight>({ flightNo: '', from: '', to: '', depart: '', arrive: '' });
 
   const day = trip.days[dayIndex];
   const isFirst = dayIndex === 0;
@@ -89,84 +47,152 @@ export function PlanScreen() {
     .filter((p) => p.category !== '숙소' && p.category !== '교통' && !scheduled.has(p.id))
     .sort((a, b) => b.wantedBy.length - a.wantedBy.length);
 
+  const openLeg = (itemId: string, prevTitle: string, title: string, initial?: TransitLeg) => {
+    const l = initial ?? { mode: '지하철' as TransitMode, depart: '', arrive: '', fromStop: prevTitle, toStop: title };
+    setLeg(l);
+    setSheet({ kind: 'leg', itemId, initial: l });
+  };
+  const close = () => setSheet(null);
+
   return (
-    <ScrollView style={ui.screen} contentContainerStyle={ui.pad}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-        {trip.days.map((d, i) => (
-          <Chip key={d.date} label={dayLabel(d.date, i)} on={i === dayIndex} onPress={() => { setDayIndex(i); setAdding(false); setEditingLeg(null); }} />
-        ))}
-      </ScrollView>
-
-      {isFirst && (day.outbound ? <FlightCard flight={day.outbound} label="가는 편" /> : flightForm !== 'outbound' && <Button title="+ 가는 항공편 넣기" ghost onPress={() => setFlightForm('outbound')} />)}
-      {flightForm && (
-        <FlightForm
-          onCancel={() => setFlightForm(null)}
-          onSave={(f) => { dispatch({ type: 'setFlight', dayIndex, direction: flightForm, flight: f }); setFlightForm(null); }}
+    <>
+      <LargeHeaderScreen title="일정" right={<MeButton />}>
+        <Segmented
+          options={trip.days.map((d, i) => ({ label: `${i + 1}일차`, sub: short(d.date) }))}
+          index={dayIndex}
+          onChange={setDayIndex}
         />
-      )}
 
-      {day.items.length === 0 && <Text style={ui.sub}>아직 비어 있어요. 수집함에서 가고 싶은 곳을 넣어보세요.</Text>}
+        <Animated.View key={day.date} entering={FadeInRight.springify().damping(20)} style={{ gap: 14 }}>
+          {isFirst && (day.outbound
+            ? <BoardingPass flight={day.outbound} label="가는 편" />
+            : <Button title="가는 항공편 넣기" icon="airplane" kind="tinted" onPress={() => setSheet({ kind: 'flight', direction: 'outbound' })} />)}
 
-      <View>
-        {day.items.map((it, idx) => {
-          const prev = day.items[idx - 1];
-          return (
-            <View key={it.id}>
-              {idx > 0 &&
-                (editingLeg === it.id ? (
-                  <TransitForm
-                    initial={it.transitIn}
-                    prevTitle={prev.title}
-                    item={it}
-                    onCancel={() => setEditingLeg(null)}
-                    onRemove={() => { dispatch({ type: 'setTransit', dayIndex, itemId: it.id, leg: undefined }); setEditingLeg(null); }}
-                    onSave={(leg) => { dispatch({ type: 'setTransit', dayIndex, itemId: it.id, leg }); setEditingLeg(null); }}
-                  />
-                ) : it.transitIn ? (
-                  <TransitLegView leg={it.transitIn} city={trip.city} onEdit={() => setEditingLeg(it.id)} />
-                ) : (
-                  <Pressable onPress={() => setEditingLeg(it.id)} style={{ marginLeft: 38, paddingVertical: 8 }}>
-                    <Text style={[ui.sub, { color: colors.primary }]}>+ 이동 방법·시간표 넣기</Text>
-                  </Pressable>
-                ))}
-              <View style={[ui.card, ui.row]}>
-                <Text style={[ui.h2, { width: 52 }]}>{it.time}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={ui.body}>{it.title}</Text>
-                  {it.placeId && <Text style={ui.sub}>{trip.places.find((p) => p.id === it.placeId)?.area}</Text>}
-                </View>
-                <Text style={ui.sub} onPress={() => dispatch({ type: 'removePlanItem', dayIndex, itemId: it.id })}>삭제</Text>
-              </View>
+          {day.items.length === 0 && (
+            <View style={{ alignItems: 'center', paddingVertical: 30, gap: 8 }}>
+              <Ionicons name="map-outline" size={40} color={c.label3} />
+              <Text style={font.footnote}>아직 비어 있어요. 가고 싶은 곳을 넣어보세요.</Text>
             </View>
-          );
-        })}
-      </View>
+          )}
 
-      {!adding ? (
-        <Button title="+ 일정 추가" onPress={() => setAdding(true)} />
-      ) : (
-        <View style={ui.card}>
-          <Text style={ui.h2}>수집함에서 고르기</Text>
-          <View style={ui.row}>
-            <Text style={ui.body}>시간</Text>
-            <TextInput style={[ui.input, { width: 80, textAlign: 'center' }]} value={time} onChangeText={setTime} />
+          <View>
+            {day.items.map((it, idx) => {
+              const prev = day.items[idx - 1];
+              const place = trip.places.find((p) => p.id === it.placeId);
+              const cs = place ? categoryStyle[place.category] : { icon: 'flag', color: c.label2 };
+              const lastItem = idx === day.items.length - 1;
+              return (
+                <Animated.View key={it.id} entering={FadeInDown.delay(idx * 70).springify().damping(18)} layout={LinearTransition.springify().damping(18)}>
+                  {idx > 0 && (
+                    <View style={{ flexDirection: 'row' }}>
+                      <View style={{ width: 52, alignItems: 'center' }}>
+                        <View style={{ width: 2, flex: 1, backgroundColor: it.transitIn ? transitStyle[it.transitIn.mode].color : c.sep, opacity: it.transitIn ? 0.5 : 1 }} />
+                      </View>
+                      <View style={{ flex: 1, paddingVertical: 8 }}>
+                        {it.transitIn ? (
+                          <TransitLegView leg={it.transitIn} city={trip.city} onEdit={() => openLeg(it.id, prev.title, it.title, it.transitIn)} />
+                        ) : (
+                          <PressableScale onPress={() => openLeg(it.id, prev.title, it.title)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 }}>
+                            <Ionicons name="add-circle" size={18} color={c.blue} />
+                            <Text style={[font.footnote, { color: c.blue, fontWeight: '600' }]}>이동 방법·시간표 넣기</Text>
+                          </PressableScale>
+                        )}
+                      </View>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 52, alignItems: 'center', gap: 4 }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: cs.color, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: c.bg }}>
+                        <Ionicons name={cs.icon as any} size={14} color="#fff" />
+                      </View>
+                    </View>
+                    <View style={[{ flex: 1, backgroundColor: c.card, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }, shadow]}>
+                      <Text style={[font.headline, { fontVariant: ['tabular-nums'], color: cs.color }]}>{it.time}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={font.callout}>{it.title}</Text>
+                        {place?.area ? <Text style={font.caption}>{place.area}</Text> : null}
+                      </View>
+                      <PressableScale onPress={() => dispatch({ type: 'removePlanItem', dayIndex, itemId: it.id })} hitSlop={8}>
+                        <Ionicons name="close-circle" size={20} color={c.label3} />
+                      </PressableScale>
+                    </View>
+                  </View>
+                  {lastItem && <View style={{ height: 4 }} />}
+                </Animated.View>
+              );
+            })}
           </View>
-          {candidates.length === 0 && <Text style={ui.sub}>남은 후보가 없어요.</Text>}
-          {candidates.map((p) => (
-            <Pressable
-              key={p.id}
-              style={ui.input}
-              onPress={() => { dispatch({ type: 'addPlanItem', dayIndex, time, title: p.name, placeId: p.id }); setAdding(false); }}
-            >
-              <Text style={ui.body}>{p.name}</Text>
-              <Text style={ui.sub}>{p.category} · {p.wantedBy.length}명이 원함</Text>
-            </Pressable>
-          ))}
-          <Button title="닫기" ghost onPress={() => setAdding(false)} />
-        </View>
-      )}
 
-      {isLast && (day.inbound ? <FlightCard flight={day.inbound} label="오는 편" /> : flightForm !== 'inbound' && <Button title="+ 오는 항공편 넣기" ghost onPress={() => setFlightForm('inbound')} />)}
-    </ScrollView>
+          <Button title="일정 추가" icon="add" onPress={() => setSheet({ kind: 'add' })} />
+
+          {isLast && (day.inbound
+            ? <BoardingPass flight={day.inbound} label="오는 편" />
+            : <Button title="오는 항공편 넣기" icon="airplane" kind="tinted" onPress={() => setSheet({ kind: 'flight', direction: 'inbound' })} />)}
+        </Animated.View>
+      </LargeHeaderScreen>
+
+      <Sheet visible={sheet?.kind === 'add'} title={`${dayIndex + 1}일차에 추가`} onClose={close}>
+        <Group>
+          <Field label="시간" value={time} onChangeText={setTime} placeholder="12:00" last />
+        </Group>
+        <Group label="수집함 후보 (원하는 사람 많은 순)">
+          {candidates.length === 0 && <Text style={[font.footnote, { padding: 14 }]}>남은 후보가 없어요.</Text>}
+          {candidates.map((p, i) => {
+            const cs = categoryStyle[p.category];
+            return (
+              <PressableScale key={p.id} scaleTo={0.98}
+                onPress={() => { success(); dispatch({ type: 'addPlanItem', dayIndex, time, title: p.name, placeId: p.id }); close(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderTopWidth: i ? 0.5 : 0, borderColor: c.sep }}>
+                <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: `${cs.color}22`, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name={cs.icon as any} size={17} color={cs.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={font.callout}>{p.name}</Text>
+                  <Text style={font.caption}>{p.category} · ♥ {p.wantedBy.length}명</Text>
+                </View>
+                <Ionicons name="add-circle" size={24} color={c.blue} />
+              </PressableScale>
+            );
+          })}
+        </Group>
+      </Sheet>
+
+      <Sheet visible={sheet?.kind === 'leg'} title="이동 방법" onClose={close}>
+        {leg && sheet?.kind === 'leg' && (
+          <>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {MODES.map((m) => (
+                <Pill key={m} label={m} icon={transitStyle[m].icon} color={transitStyle[m].color} on={leg.mode === m} onPress={() => setLeg({ ...leg, mode: m })} />
+              ))}
+            </View>
+            <Group>
+              <Field label="노선" placeholder="난보쿠선, 쾌속 에어포트" value={leg.line ?? ''} onChangeText={(v) => setLeg({ ...leg, line: v })} />
+              <Field label="타는 곳" value={leg.fromStop} onChangeText={(v) => setLeg({ ...leg, fromStop: v })} />
+              <Field label="출발" placeholder="14:10" value={leg.depart} onChangeText={(v) => setLeg({ ...leg, depart: v })} />
+              <Field label="내리는 곳" value={leg.toStop} onChangeText={(v) => setLeg({ ...leg, toStop: v })} />
+              <Field label="도착" placeholder="14:14" value={leg.arrive} onChangeText={(v) => setLeg({ ...leg, arrive: v })} />
+              <Field label="메모" placeholder="15분 간격" value={leg.note ?? ''} onChangeText={(v) => setLeg({ ...leg, note: v })} last />
+            </Group>
+            <Button title="저장" disabled={!leg.depart || !leg.arrive}
+              onPress={() => { success(); dispatch({ type: 'setTransit', dayIndex, itemId: sheet.itemId, leg }); close(); }} />
+            <Button title="이동 칸 지우기" kind="plain" color={c.red}
+              onPress={() => { dispatch({ type: 'setTransit', dayIndex, itemId: sheet.itemId, leg: undefined }); close(); }} />
+          </>
+        )}
+      </Sheet>
+
+      <Sheet visible={sheet?.kind === 'flight'} title="항공편" onClose={close}>
+        <Text style={font.footnote}>항공권 사진에서 자동으로 읽어오는 기능은 다음 단계에서 붙일 예정이에요.</Text>
+        <Group>
+          <Field label="편명" placeholder="KE765" value={flight.flightNo} onChangeText={(v) => setFlight({ ...flight, flightNo: v })} />
+          <Field label="출발 공항" placeholder="인천" value={flight.from} onChangeText={(v) => setFlight({ ...flight, from: v })} />
+          <Field label="출발 시간" placeholder="09:00" value={flight.depart} onChangeText={(v) => setFlight({ ...flight, depart: v })} />
+          <Field label="도착 공항" placeholder="신치토세" value={flight.to} onChangeText={(v) => setFlight({ ...flight, to: v })} />
+          <Field label="도착 시간" placeholder="12:10" value={flight.arrive} onChangeText={(v) => setFlight({ ...flight, arrive: v })} last />
+        </Group>
+        <Button title="저장" disabled={!flight.flightNo || !flight.depart || !flight.arrive}
+          onPress={() => { if (sheet?.kind === 'flight') { success(); dispatch({ type: 'setFlight', dayIndex, direction: sheet.direction, flight }); } close(); }} />
+      </Sheet>
+    </>
   );
 }

@@ -1,64 +1,71 @@
+import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { Platform, Pressable, StatusBar as RNStatusBar, Text, View } from 'react-native';
-import { Chip } from './src/components/Chip';
+import { Text, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Avatar } from './src/components/Avatar';
+import { PressableScale } from './src/components/PressableScale';
+import { Sheet } from './src/components/Sheet';
+import { TabBar, TabDef } from './src/components/TabBar';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { PoolScreen } from './src/screens/PoolScreen';
 import { VoteScreen } from './src/screens/VoteScreen';
 import { TripProvider, useTrip } from './src/store';
-import { colors, ui } from './src/theme';
-
-const TABS = [
-  { key: 'pool', label: '수집함', icon: '📌' },
-  { key: 'vote', label: '투표', icon: '🗳️' },
-  { key: 'plan', label: '일정', icon: '🗓️' },
-] as const;
-type TabKey = (typeof TABS)[number]['key'];
+import { c, font } from './src/theme';
+import { UIContext } from './src/ui';
 
 function Shell() {
   const { state, dispatch } = useTrip();
-  const [tab, setTab] = useState<TabKey>('pool');
-  const openVotes = state.trip.votes.filter((v) => !v.closed && !v.ballots[state.meId]).length;
-  const topInset = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : Platform.OS === 'ios' ? 50 : 12;
+  const [tab, setTab] = useState('pool');
+  const [membersOpen, setMembersOpen] = useState(false);
+  const pendingVotes = state.trip.votes.filter((v) => !v.closed && !v.ballots[state.meId]).length;
+
+  const tabs: TabDef[] = [
+    { key: 'pool', label: '수집함', icon: 'albums-outline', iconOn: 'albums' },
+    { key: 'vote', label: '투표', icon: 'checkmark-circle-outline', iconOn: 'checkmark-circle', badge: pendingVotes },
+    { key: 'plan', label: '일정', icon: 'calendar-outline', iconOn: 'calendar' },
+  ];
 
   return (
-    <View style={[ui.screen, { paddingTop: topInset }]}>
-      <View style={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8, backgroundColor: colors.card, borderBottomWidth: 1, borderColor: colors.line }}>
-        <Text style={ui.h1}>{state.trip.title}</Text>
-        <View style={[ui.row, { flexWrap: 'wrap' }]}>
-          <Text style={ui.sub}>나는</Text>
-          {state.trip.members.map((m) => (
-            <Chip key={m.id} label={m.name} on={m.id === state.meId} onPress={() => dispatch({ type: 'setMe', memberId: m.id })} />
-          ))}
-        </View>
-      </View>
+    <UIContext.Provider value={{ openMembers: () => setMembersOpen(true) }}>
+      <View style={{ flex: 1, backgroundColor: c.bg }}>
+        <Animated.View key={tab} entering={FadeIn.duration(260)} exiting={FadeOut.duration(120)} style={{ flex: 1 }}>
+          {tab === 'pool' && <PoolScreen />}
+          {tab === 'vote' && <VoteScreen />}
+          {tab === 'plan' && <PlanScreen />}
+        </Animated.View>
+        <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
-      <View style={{ flex: 1 }}>
-        {tab === 'pool' && <PoolScreen />}
-        {tab === 'vote' && <VoteScreen />}
-        {tab === 'plan' && <PlanScreen />}
+        <Sheet visible={membersOpen} title="누구로 볼까요?" onClose={() => setMembersOpen(false)}>
+          <Text style={font.footnote}>친구 입장에서 투표해보려면 바꿔보세요. 실제 앱에서는 각자 자기 휴대폰으로 들어와요.</Text>
+          <View style={{ backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden' }}>
+            {state.trip.members.map((m, i) => (
+              <PressableScale
+                key={m.id}
+                scaleTo={0.98}
+                onPress={() => { dispatch({ type: 'setMe', memberId: m.id }); setMembersOpen(false); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderTopWidth: i ? 0.5 : 0, borderColor: c.sep }}
+              >
+                <Avatar member={m} size={36} />
+                <Text style={[font.body, { flex: 1 }]}>{m.name}</Text>
+                {m.id === state.meId && <Ionicons name="checkmark" size={22} color={c.blue} />}
+              </PressableScale>
+            ))}
+          </View>
+        </Sheet>
+        <StatusBar style="dark" />
       </View>
-
-      <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingBottom: Platform.OS === 'ios' ? 24 : 8 }}>
-        {TABS.map((t) => (
-          <Pressable key={t.key} onPress={() => setTab(t.key)} style={{ flex: 1, alignItems: 'center', paddingTop: 8, gap: 2 }}>
-            <Text style={{ fontSize: 20 }}>{t.icon}</Text>
-            <Text style={{ fontSize: 12, fontWeight: tab === t.key ? '700' : '400', color: tab === t.key ? colors.primary : colors.sub }}>
-              {t.label}
-              {t.key === 'vote' && openVotes ? ` (${openVotes})` : ''}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <StatusBar style="dark" />
-    </View>
+    </UIContext.Provider>
   );
 }
 
 export default function App() {
   return (
-    <TripProvider>
-      <Shell />
-    </TripProvider>
+    <SafeAreaProvider>
+      <TripProvider>
+        <Shell />
+      </TripProvider>
+    </SafeAreaProvider>
   );
 }
