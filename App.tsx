@@ -12,6 +12,8 @@ import { success } from './src/components/haptics';
 import { PressableScale } from './src/components/PressableScale';
 import { Sheet } from './src/components/Sheet';
 import { TabBar, TabDef } from './src/components/TabBar';
+import { useChat, useUnread } from './src/lib/chat';
+import { ChatScreen } from './src/screens/ChatScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { PoolScreen } from './src/screens/PoolScreen';
 import { VoteScreen } from './src/screens/VoteScreen';
@@ -27,6 +29,8 @@ function Shell() {
   const { mode, leave } = useSession();
   const demo = mode === 'demo';
   const [copied, setCopied] = useState(false);
+  const chat = useChat();
+  const unread = useUnread(chat.messages, state.meId, state.trip.id, tab === 'chat');
   const pendingVotes = state.trip.votes.filter((v) => !v.closed && !v.myChoice).length;
   const code = state.trip.inviteCode ?? '';
   const invite = `${state.trip.title} 같이 짜자! ✈️\n앱에서 초대 코드 ${code} 를 입력해줘`;
@@ -40,6 +44,7 @@ function Shell() {
     { key: 'pool', label: '모아보기', emoji: '📌' },
     { key: 'vote', label: '투표', emoji: '✅', badge: pendingVotes },
     { key: 'plan', label: '일정', emoji: '📅' },
+    { key: 'chat', label: '수다', emoji: '💬', badge: unread },
   ];
 
   return (
@@ -49,6 +54,7 @@ function Shell() {
           {tab === 'pool' && <PoolScreen />}
           {tab === 'vote' && <VoteScreen />}
           {tab === 'plan' && <PlanScreen />}
+          {tab === 'chat' && <ChatScreen chat={chat} />}
         </Animated.View>
         <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
