@@ -9,6 +9,7 @@ import { LargeHeaderScreen } from '../components/LargeHeaderScreen';
 import { MeButton } from '../components/MeButton';
 import { Pill } from '../components/Pill';
 import { PressableScale } from '../components/PressableScale';
+import { RegisterSheet } from '../components/RegisterSheet';
 import { Sheet } from '../components/Sheet';
 import { guessFromSharedText, useTrip } from '../store';
 import { extractPlace, PlaceDraft } from '../lib/remote';
@@ -68,6 +69,7 @@ export function PoolScreen() {
   const me = trip.members.find((m) => m.id === meId)!;
   const [filter, setFilter] = useState<Category | '전체'>('전체');
   const [sheet, setSheet] = useState(false);
+  const [register, setRegister] = useState(false);
   const [shared, setShared] = useState('');
   const [draft, setDraft] = useState<PlaceDraft | null>(null);
   const [thinking, setThinking] = useState(false);
@@ -93,7 +95,7 @@ export function PoolScreen() {
       <LargeHeaderScreen greeting={`${me.name} 님, 안녕!`} title={`${trip.city} 가서\n뭐 먹고 뭐 할까? ☃️`} compactTitle="모아보기" right={<MeButton />}>
         <DdayCard />
 
-        <Button title="인스타 게시물 넣기" emoji="📮" kind="soft" onPress={() => setSheet(true)} />
+        <Button title="일정 등록하기" emoji="✏️" kind="soft" onPress={() => setRegister(true)} />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -18 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 18, paddingVertical: 6 }}>
           <Pill label="전체" on={filter === '전체'} onPress={() => setFilter('전체')} />
@@ -105,9 +107,10 @@ export function PoolScreen() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 }}>
           {places.map((p, i) => <PlaceTile key={p.id} p={p} index={i} />)}
         </View>
-        {places.length === 0 && <Text style={[t.note, { textAlign: 'center', paddingVertical: 30 }]}>아직 비어 있어요. 인스타에서 하나 넣어볼까요?</Text>}
+        {places.length === 0 && <Text style={[t.note, { textAlign: 'center', paddingVertical: 30 }]}>아직 비어 있어요. 가고 싶은 곳을 등록해볼까요?</Text>}
       </LargeHeaderScreen>
 
+      <RegisterSheet visible={register} onClose={() => setRegister(false)} />
       <Sheet visible={sheet} title={draft ? '이렇게 만들까요? ✨' : '게시물 넣기 📮'} onClose={close}>
         {!draft ? (
           <>

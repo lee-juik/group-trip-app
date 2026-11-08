@@ -14,6 +14,7 @@ export interface State {
 export type Action =
   | { type: 'setMe'; memberId: string }
   | { type: 'addPlace'; place: Omit<PlaceCard, 'id' | 'addedBy' | 'wantedBy'> }
+  | { type: 'registerPlace'; place: Omit<PlaceCard, 'id' | 'addedBy' | 'wantedBy'>; dayIndex?: number; time?: string }
   | { type: 'toggleWant'; placeId: string }
   | { type: 'createVote'; title: string; optionIds: string[]; deadline: string }
   | { type: 'castVote'; voteId: string; optionId: string }
@@ -51,6 +52,14 @@ function reducer(state: State, action: Action): State {
       }
       const place: PlaceCard = { ...action.place, id: newId('p'), addedBy: meId, wantedBy: [meId] };
       return update({ places: [place, ...trip.places] });
+    }
+
+    case 'registerPlace': {
+      const withPlace = reducer(state, { type: 'addPlace', place: action.place });
+      if (action.dayIndex == null || !action.time) return withPlace;
+      const key = action.place.name.replace(/\s/g, '').toLowerCase();
+      const p = withPlace.trip.places.find((x) => x.name.replace(/\s/g, '').toLowerCase() === key)!;
+      return reducer(withPlace, { type: 'addPlanItem', dayIndex: action.dayIndex, time: action.time, title: p.name, placeId: p.id });
     }
 
     case 'toggleWant':
@@ -161,6 +170,7 @@ async function sendToServer(state: State, a: Action) {
   switch (a.type) {
     case 'setMe':
       return;
+    case 'registerPlace':
     case 'addPlace': {
       const key = a.place.name.replace(/\s/g, '').toLowerCase();
       const dup = trip.places.find((p) => p.name.replace(/\s/g, '').toLowerCase() === key);
@@ -173,7 +183,11 @@ async function sendToServer(state: State, a: Action) {
         ok(r);
         placeId = r.data!.id;
       }
-      return ok(await supabase.from('place_wants').upsert({ place_id: placeId, member_id: meId, trip_id: trip.id }, { ignoreDuplicates: true }));
+      ok(await supabase.from('place_wants').upsert({ place_id: placeId, member_id: meId, trip_id: trip.id }, { ignoreDuplicates: true }));
+      if (a.type === 'registerPlace' && a.dayIndex != null && a.time) {
+        ok(await supabase.from('plan_items').insert({ trip_id: trip.id, day_id: dayId(a.dayIndex), time: a.time, title: a.place.name, place_id: placeId }));
+      }
+      return;
     }
     case 'toggleWant': {
       const on = trip.places.find((p) => p.id === a.placeId)?.wantedBy.includes(meId);
