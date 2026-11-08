@@ -82,3 +82,12 @@ export async function joinTrip(code: string, name: string): Promise<string> {
   if (r.error?.message.includes('invalid code')) throw new Error('초대 코드를 다시 확인해 주세요');
   return must(r) as string;
 }
+
+export interface PlaceDraft { name: string; category: Category; summary: string; area: string; emoji?: string; sourceUrl?: string }
+
+/** 인스타 링크/캡션을 서버의 AI에게 보내 장소 카드 초안을 받는다 */
+export async function extractPlace(text: string, city: string): Promise<PlaceDraft> {
+  const { data, error } = await supabase.functions.invoke('extract-place', { body: { text, city } });
+  if (error || !data || data.error || !data.name) throw new Error(data?.error ?? error?.message ?? 'AI 요약 실패');
+  return { name: data.name, category: data.category, summary: data.summary ?? '', area: data.area ?? '', emoji: data.emoji || undefined, sourceUrl: data.sourceUrl };
+}

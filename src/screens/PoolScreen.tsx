@@ -11,6 +11,7 @@ import { Pill } from '../components/Pill';
 import { PressableScale } from '../components/PressableScale';
 import { Sheet } from '../components/Sheet';
 import { guessFromSharedText, useTrip } from '../store';
+import { extractPlace, PlaceDraft } from '../lib/remote';
 import { c, categoryStyle, G, J, softShadow, t } from '../theme';
 import { CATEGORIES, Category, PlaceCard } from '../types';
 
@@ -68,13 +69,24 @@ export function PoolScreen() {
   const [filter, setFilter] = useState<Category | '전체'>('전체');
   const [sheet, setSheet] = useState(false);
   const [shared, setShared] = useState('');
-  const [draft, setDraft] = useState<ReturnType<typeof guessFromSharedText> | null>(null);
+  const [draft, setDraft] = useState<PlaceDraft | null>(null);
+  const [thinking, setThinking] = useState(false);
+  const [aiNote, setAiNote] = useState<string>();
+  const makeCard = async () => {
+    setThinking(true); setAiNote(undefined);
+    try {
+      setDraft(await extractPlace(shared, trip.city));
+    } catch {
+      setDraft({ ...guessFromSharedText(shared), area: '' });
+      setAiNote('AI 요약이 안 돼서 글에서 대충 뽑았어요. 고쳐서 넣어주세요.');
+    } finally { setThinking(false); }
+  };
 
   const places = useMemo(
     () => trip.places.filter((p) => filter === '전체' || p.category === filter).sort((a, b) => b.wantedBy.length - a.wantedBy.length),
     [trip.places, filter],
   );
-  const close = () => { setSheet(false); setDraft(null); setShared(''); };
+  const close = () => { setSheet(false); setDraft(null); setShared(''); setAiNote(undefined); };
 
   return (
     <>
@@ -99,7 +111,7 @@ export function PoolScreen() {
       <Sheet visible={sheet} title={draft ? '이렇게 만들까요? ✨' : '게시물 넣기 📮'} onClose={close}>
         {!draft ? (
           <>
-            <Text style={t.note}>인스타에서 링크와 캡션을 복사해서 붙여넣으면 장소 카드로 만들어 줄게요.</Text>
+            <Text style={t.note}>인스타 게시물 링크를 붙여넣으면 AI가 읽고 장소 카드로 정리해줘요. 캡션까지 같이 붙여넣으면 더 정확해요.</Text>
             <View style={{ backgroundColor: '#fff', borderRadius: 22, padding: 16 }}>
               <TextInput
                 multiline
@@ -111,22 +123,24 @@ export function PoolScreen() {
                 style={{ fontFamily: G, fontSize: 16, minHeight: 110, color: c.ink, textAlignVertical: 'top', outlineStyle: 'none' } as object}
               />
             </View>
-            <Button title="카드 만들기" emoji="✨" disabled={!shared.trim()} onPress={() => setDraft(guessFromSharedText(shared))} />
+            <Button title={thinking ? 'AI가 읽는 중…' : '카드 만들기'} emoji={thinking ? '🔎' : '✨'} disabled={!shared.trim() || thinking} onPress={makeCard} />
           </>
         ) : (
           <Animated.View entering={FadeInDown.springify().damping(16)} style={{ gap: 12 }}>
             <View style={{ backgroundColor: categoryStyle[draft.category].bg, borderRadius: 28, padding: 18, gap: 6 }}>
-              <Text style={{ fontSize: 32 }}>{categoryStyle[draft.category].emoji}</Text>
-              <TextInput value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} style={[t.title, { paddingVertical: 2 }]} />
-              <TextInput value={draft.summary} multiline onChangeText={(summary) => setDraft({ ...draft, summary })} style={t.body} />
+              <Text style={{ fontSize: 32 }}>{draft.emoji ?? categoryStyle[draft.category].emoji}</Text>
+              <TextInput value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} style={[t.title, { paddingVertical: 2, outlineStyle: 'none' } as object]} />
+              <TextInput value={draft.area} placeholder="동네 (예: 스스키노)" placeholderTextColor={c.sub} onChangeText={(area) => setDraft({ ...draft, area })} style={[t.label, { color: c.sub, outlineStyle: 'none' } as object]} />
+              <TextInput value={draft.summary} multiline onChangeText={(summary) => setDraft({ ...draft, summary })} style={[t.body, { outlineStyle: 'none' } as object]} />
             </View>
+            {aiNote && <Text style={[t.note, { color: c.orange }]}>{aiNote}</Text>}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {CATEGORIES.map((k) => (
                 <Pill key={k} label={k} emoji={categoryStyle[k].emoji} on={draft.category === k} onPress={() => setDraft({ ...draft, category: k })} />
               ))}
             </View>
             <Button title="수집함에 쏙 넣기" emoji="📌" disabled={!draft.name.trim()}
-              onPress={() => { success(); dispatch({ type: 'addPlace', place: { ...draft, area: '' } }); close(); }} />
+              onPress={() => { success(); dispatch({ type: 'addPlace', place: draft }); close(); }} />
           </Animated.View>
         )}
       </Sheet>
