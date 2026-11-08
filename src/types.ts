@@ -82,6 +82,8 @@ export interface Trip {
   title: string;
   city: string;
   inviteCode?: string;
+  /** 방장 멤버 id (내보내기 권한) */
+  hostId?: string;
   members: Member[];
   places: PlaceCard[];
   votes: Vote[];

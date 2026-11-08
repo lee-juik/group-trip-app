@@ -42,6 +42,7 @@ export async function loadTrip(tripId: string, userId: string): Promise<{ trip: 
     title: t.title,
     city: t.city,
     inviteCode: t.invite_code,
+    hostId: (ms.find((m) => m.user_id === t.created_by) ?? ms[0])?.id,
     members: ms.map((m) => ({ id: m.id, name: m.name })),
     places: (must(places) ?? []).map(
       (p): PlaceCard => ({
@@ -90,4 +91,10 @@ export async function extractPlace(text: string, city: string): Promise<PlaceDra
   const { data, error } = await supabase.functions.invoke('extract-place', { body: { text, city } });
   if (error || !data || data.error || !data.name) throw new Error(data?.error ?? error?.message ?? 'AI 요약 실패');
   return { name: data.name, category: data.category, summary: data.summary ?? '', area: data.area ?? '', emoji: data.emoji || undefined, sourceUrl: data.sourceUrl };
+}
+
+/** 방장이 멤버를 내보낸다 (서버에서 방장인지 다시 확인함) */
+export async function removeMember(memberId: string) {
+  const { data, error } = await supabase.functions.invoke('remove-member', { body: { memberId } });
+  if (error || data?.error) throw new Error(data?.error ?? error?.message ?? '내보내기 실패');
 }

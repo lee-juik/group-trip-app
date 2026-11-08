@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession, useTrip } from '../store';
 import { supabase } from './supabase';
 
@@ -86,10 +86,18 @@ export function useChat() {
     });
   }, [demo, tripId, meId]);
 
+  // 카톡처럼: 메시지를 보낸 사람은 그 앞의 메시지를 다 읽은 걸로 친다
+  const seenUpTo = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(reads)) out[k] = ms(v);
+    for (const m of messages) if (m.memberId && !m.pending) out[m.memberId] = Math.max(out[m.memberId] ?? 0, ms(m.createdAt));
+    return out;
+  }, [reads, messages]);
+
   /** 이 메시지를 아직 안 읽은 사람 수 (보낸 사람 빼고) */
   const unreadCount = useCallback((m: ChatMessage) =>
-    state.trip.members.filter((x) => x.id !== m.memberId && ms(reads[x.id]) < ms(m.createdAt)).length,
-  [reads, state.trip.members]);
+    state.trip.members.filter((x) => x.id !== m.memberId && (seenUpTo[x.id] ?? 0) < ms(m.createdAt)).length,
+  [seenUpTo, state.trip.members]);
 
   return { messages, loaded, send, meId, reads, markRead, unreadCount };
 }

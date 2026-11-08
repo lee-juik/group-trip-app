@@ -18,6 +18,8 @@ import { PlanScreen } from './src/screens/PlanScreen';
 import { PoolScreen } from './src/screens/PoolScreen';
 import { VoteScreen } from './src/screens/VoteScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { removeMember } from './src/lib/remote';
+import { Alert } from 'react-native';
 import { TripProvider, useHasTrip, useSession, useTrip } from './src/store';
 import { c, J, t } from './src/theme';
 import { UIContext } from './src/ui';
@@ -37,6 +39,12 @@ function Shell() {
   const shareInvite = async () => {
     if (Platform.OS === 'web') { await Clipboard.setStringAsync(invite); setCopied(true); return; }
     await Share.share({ message: invite });
+  };
+  const isHost = !demo && state.trip.hostId === state.meId;
+  const kick = (m: { id: string; name: string }) => {
+    const go = () => removeMember(m.id).then(() => { success(); }).catch((e) => (Platform.OS === 'web' ? window.alert(e.message) : Alert.alert('내보내기 실패', e.message)));
+    if (Platform.OS === 'web') { if (window.confirm(`${m.name} 님을 여행방에서 내보낼까요?`)) go(); }
+    else Alert.alert(`${m.name} 님을 내보낼까요?`, '하트, 투표, 읽음 기록이 같이 지워져요.', [{ text: '취소', style: 'cancel' }, { text: '내보내기', style: 'destructive', onPress: go }]);
   };
   const copyCode = async () => { await Clipboard.setStringAsync(code); success(); setCopied(true); setTimeout(() => setCopied(false), 1500); };
 
@@ -77,7 +85,12 @@ function Shell() {
                 onPress={() => { dispatch({ type: 'setMe', memberId: m.id }); setMembersOpen(false); }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderTopWidth: i ? 1.5 : 0, borderColor: c.line }}>
                 <Avatar member={m} size={40} />
-                <Text style={[t.h, { flex: 1 }]}>{m.name}</Text>
+                <Text style={[t.h, { flex: 1 }]}>{m.name}{m.id === state.trip.hostId && !demo ? ' 👑' : ''}</Text>
+                {isHost && m.id !== state.meId && (
+                  <PressableScale onPress={() => kick(m)} hitSlop={6} style={{ backgroundColor: c.pinkSoft, borderRadius: 12, paddingVertical: 5, paddingHorizontal: 10 }}>
+                    <Text style={{ fontFamily: J, fontSize: 12, color: c.pink }}>내보내기</Text>
+                  </PressableScale>
+                )}
                 {m.id === state.meId && <Text style={{ fontFamily: J, fontSize: 13, color: '#fff', backgroundColor: c.ink, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 10, overflow: 'hidden' }}>나</Text>}
               </PressableScale>
             ))}
