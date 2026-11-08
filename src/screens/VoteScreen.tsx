@@ -17,10 +17,9 @@ import { CATEGORIES, Category, Trip, Vote } from '../types';
 /** 마감됐거나 전원 투표했을 때만 결과를 공개한다 */
 export function tally(vote: Vote, trip: Trip) {
   const total = trip.members.length;
-  const counts: Record<string, number> = {};
-  Object.values(vote.ballots).forEach((o) => (counts[o] = (counts[o] ?? 0) + 1));
-  const voted = Object.keys(vote.ballots).length;
-  const revealed = vote.closed || voted === total;
+  const counts: Record<string, number> = vote.counts ?? {};
+  const voted = vote.voters.length;
+  const revealed = !!vote.counts;
   const options = vote.kind === 'yesno' ? ['yes', 'no'] : vote.optionIds;
   const ranked = [...options].sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0));
   const top = ranked[0];
@@ -105,7 +104,7 @@ function VoteCard({ vote, index }: { vote: Vote; index: number }) {
             {...look(o)}
             label={label(o)}
             sub={vote.kind === 'single' ? place(o)?.summary : undefined}
-            picked={vote.ballots[meId] === o}
+            picked={vote.myChoice === o}
             revealed={r.revealed}
             count={r.counts[o] ?? 0}
             total={r.total}
@@ -118,7 +117,7 @@ function VoteCard({ vote, index }: { vote: Vote; index: number }) {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {trip.members.map((m) => {
-          const done = !!vote.ballots[m.id];
+          const done = vote.voters.includes(m.id);
           return (
             <View key={m.id} style={{ opacity: done ? 1 : 0.35 }}>
               <Avatar member={m} size={30} />
@@ -167,7 +166,7 @@ export function VoteScreen() {
   const [picked, setPicked] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [days, setDays] = useState('2');
-  const waiting = trip.votes.filter((v) => !v.closed && !v.ballots[meId]).length;
+  const waiting = trip.votes.filter((v) => !v.closed && !v.myChoice).length;
 
   const start = () => {
     success();

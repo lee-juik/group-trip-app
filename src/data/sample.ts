@@ -23,7 +23,7 @@ export const sampleTrip: Trip = {
     { id: 'h3', emoji: '🏙', name: '오도리 호텔 C', category: '숙소', area: '오도리', summary: '1박 1인 5만원대, 신축, 방이 좁음.', addedBy: 'm2', wantedBy: [] },
   ],
   votes: [
-    { id: 'v1', title: '숙소 예약할 시간입니다! 어디로 할까요?', kind: 'single', optionIds: ['h1', 'h2', 'h3'], deadline: '2026-11-10T21:00:00+09:00', ballots: { m2: 'h2', m3: 'h2' }, closed: false },
+    { id: 'v1', title: '숙소 예약할 시간입니다! 어디로 할까요?', kind: 'single', optionIds: ['h1', 'h2', 'h3'], deadline: '2026-11-10T21:00:00+09:00', _ballots: { m2: 'h2', m3: 'h2' }, voters: [], closed: false },
   ],
   days: [
     {

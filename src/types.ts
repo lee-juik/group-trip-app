@@ -28,9 +28,15 @@ export interface Vote {
   kind: VoteKind;
   optionIds: string[]; // PlaceCard ids
   deadline: string; // ISO
-  /** memberId -> chosen option id (or 'yes'/'no' for yesno). 마감 전엔 화면에 노출하지 않는다 */
-  ballots: Record<string, string>;
   closed: boolean;
+  /** 투표를 마친 멤버 id (누가 뭘 골랐는지는 모른다) */
+  voters: string[];
+  /** 내가 고른 선택지 */
+  myChoice?: string;
+  /** 결과가 공개됐을 때만 있음: 선택지 id -> 표 수 */
+  counts?: Record<string, number>;
+  /** 샘플 모드에서만 쓰는 실제 투표 내역 (서버 모드에서는 서버가 숨겨서 보관) */
+  _ballots?: Record<string, string>;
 }
 
 export interface Flight {
@@ -64,6 +70,7 @@ export interface PlanItem {
 }
 
 export interface TripDay {
+  id?: string;
   date: string; // YYYY-MM-DD
   outbound?: Flight;
   inbound?: Flight;
@@ -74,6 +81,7 @@ export interface Trip {
   id: string;
   title: string;
   city: string;
+  inviteCode?: string;
   members: Member[];
   places: PlaceCard[];
   votes: Vote[];
