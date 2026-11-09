@@ -23,6 +23,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx tsc --noEmit
       - run: npx expo export --platform web --output-dir web
         env:
           CI: 1

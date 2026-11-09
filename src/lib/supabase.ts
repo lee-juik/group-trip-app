@@ -15,11 +15,22 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   },
 });
 
-/** 가입 없이 바로 쓰도록 익명 계정으로 로그인. 한 번 만든 계정은 휴대폰에 저장된다 */
+const isNetworkError = (e: { name?: string; status?: number; message: string }) =>
+  e.name === 'AuthRetryableFetchError' || e.status === 0 || /fetch|network|Load failed|timeout/i.test(e.message);
+
+/**
+ * 가입 없이 바로 쓰도록 익명 계정으로 로그인. 한 번 만든 계정은 휴대폰에 저장된다.
+ * 인터넷이 약해서 세션 확인에 실패한 경우에는 새 계정을 만들지 않고 오류를 던진다
+ * (새 계정이 생기면 여행방의 내 자리와 연결이 끊어지기 때문).
+ */
 export async function ensureSignedIn(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getSession();
   if (data.session) return data.session.user.id;
-  const { data: signed, error } = await supabase.auth.signInAnonymously();
-  if (error || !signed.user) throw new Error(error?.message ?? '로그인 실패');
+  if (error) {
+    if (isNetworkError(error)) throw new Error(`네트워크 오류: ${error.message}`);
+    // 저장된 세션이 완전히 못 쓰게 된 경우(만료 등)에만 새로 만든다
+  }
+  const { data: signed, error: e2 } = await supabase.auth.signInAnonymously();
+  if (e2 || !signed.user) throw new Error(e2?.message ?? '로그인 실패');
   return signed.user.id;
 }

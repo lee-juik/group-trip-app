@@ -23,11 +23,14 @@ npx expo install --fix      # fix incompatible package versions
 
 Run lint and typecheck before declaring any task done.
 
-## Navigation & Routing
+## This project
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+- No Expo Router: `App.tsx` renders a single tab shell (모아보기/투표/일정/수다) with its own `useState` tab. Do not add `src/app/`.
+- Backend is Supabase (`src/lib/supabase.ts`, `remote.ts`, `chat.ts`); state + optimistic writes live in `src/store.tsx` (reducer → `sendToServer` → `refresh`). New rows get their uuid on the client (`withIds`).
+- Deployed as a PWA on GitHub Pages from `main` (`.github/workflows/pages.yml` runs `tsc --noEmit` then `expo export --platform web` with `EXPO_BASE_URL=/group-trip-app`). Commits to `main` go live.
+- DB changes: write SQL under `supabase/migrations/` (CREATE / ALTER / CREATE OR REPLACE only; never DROP/DELETE/REVOKE without the owner's go-ahead) and apply with the Supabase MCP `apply_migration`. Keep `0001_schema_snapshot.sql` in sync.
+- UI text is Korean, casual (해요체). Design is pastel (see `src/theme.ts`); keep Jua headings / Gowun Dodum body.
+- Demo mode (`샘플 여행 구경하기`) works without network; use it for Playwright smoke tests of the exported `web/` folder served under `/group-trip-app/`.
 
 ## Building with EAS
 

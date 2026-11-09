@@ -34,7 +34,10 @@ export async function loadTrip(tripId: string, userId: string): Promise<{ trip: 
 
   const itemsByDay: Record<string, TripDay['items']> = {};
   (must(items) ?? []).forEach((it) =>
-    (itemsByDay[it.day_id] ??= []).push({ id: it.id, time: it.time, title: it.title, placeId: it.place_id ?? undefined, transitIn: (it.transit_in as TransitLeg) ?? undefined }),
+    (itemsByDay[it.day_id] ??= []).push({
+      id: it.id, time: it.time, title: it.title, placeId: it.place_id ?? undefined, note: it.note ?? undefined,
+      transitIn: (it.transit_in as TransitLeg) ?? undefined,
+    }),
   );
 
   const trip: Trip = {
@@ -42,6 +45,7 @@ export async function loadTrip(tripId: string, userId: string): Promise<{ trip: 
     title: t.title,
     city: t.city,
     inviteCode: t.invite_code,
+    joinLocked: !!t.join_locked,
     hostId: (ms.find((m) => m.user_id === t.created_by) ?? ms[0])?.id,
     members: ms.map((m) => ({ id: m.id, name: m.name })),
     places: (must(places) ?? []).map(
@@ -64,14 +68,17 @@ export async function loadTrip(tripId: string, userId: string): Promise<{ trip: 
   return { trip, meId: me.id };
 }
 
-/** 친구가 뭔가 바꾸면 바로 알려주는 실시간 구독. 바뀔 때마다 onChange가 불린다 */
-export function subscribeTrip(tripId: string, onChange: () => void): RealtimeChannel {
+/**
+ * 친구가 뭔가 바꾸면 바로 알려주는 실시간 구독. 바뀔 때마다 onChange가 불린다.
+ * 연결이 (다시) 붙을 때는 onConnected가 불린다 (끊긴 동안 놓친 변경을 다시 읽기 위해)
+ */
+export function subscribeTrip(tripId: string, onChange: () => void, onConnected?: () => void): RealtimeChannel {
   const ch = supabase.channel(`trip-${tripId}`);
   for (const table of ['members', 'places', 'place_wants', 'votes', 'days', 'plan_items']) {
     ch.on('postgres_changes', { event: '*', schema: 'public', table, filter: `trip_id=eq.${tripId}` }, onChange);
   }
   ch.on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, onChange);
-  return ch.subscribe();
+  return ch.subscribe((status) => { if (status === 'SUBSCRIBED') onConnected?.(); });
 }
 
 export async function createTrip(p: { title: string; city: string; start: string; end: string; name: string }): Promise<string> {
@@ -80,21 +87,17 @@ export async function createTrip(p: { title: string; city: string; start: string
 
 export async function joinTrip(code: string, name: string): Promise<string> {
   const r = await supabase.rpc('join_trip', { p_code: code, p_name: name });
-  if (r.error?.message.includes('invalid code')) throw new Error('초대 코드를 다시 확인해 주세요');
+  if (r.error?.message.includes('invalid code')) throw new Error('초대 코드를 다시 확인해 주세요. 방장이 입장을 막아 둔 방일 수도 있어요.');
   return must(r) as string;
-}
-
-export interface PlaceDraft { name: string; category: Category; summary: string; area: string; emoji?: string; sourceUrl?: string }
-
-/** 인스타 링크/캡션을 서버의 AI에게 보내 장소 카드 초안을 받는다 */
-export async function extractPlace(text: string, city: string): Promise<PlaceDraft> {
-  const { data, error } = await supabase.functions.invoke('extract-place', { body: { text, city } });
-  if (error || !data || data.error || !data.name) throw new Error(data?.error ?? error?.message ?? 'AI 요약 실패');
-  return { name: data.name, category: data.category, summary: data.summary ?? '', area: data.area ?? '', emoji: data.emoji || undefined, sourceUrl: data.sourceUrl };
 }
 
 /** 방장이 멤버를 내보낸다 (서버에서 방장인지 다시 확인함) */
 export async function removeMember(memberId: string) {
   const { data, error } = await supabase.functions.invoke('remove-member', { body: { memberId } });
   if (error || data?.error) throw new Error(data?.error ?? error?.message ?? '내보내기 실패');
+}
+
+/** 방장이 새 멤버 입장을 막거나 다시 연다 */
+export async function setJoinLocked(tripId: string, locked: boolean) {
+  must(await supabase.rpc('set_join_locked', { p_trip: tripId, p_locked: locked }));
 }

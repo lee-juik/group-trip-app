@@ -7,7 +7,7 @@ export interface Member {
   name: string;
 }
 
-/** 인스타 등에서 공유받아 만든 장소 카드 */
+/** 가고 싶은 곳 카드 */
 export interface PlaceCard {
   id: string;
   name: string;
@@ -21,6 +21,9 @@ export interface PlaceCard {
   addedBy: string; // member id
   wantedBy: string[]; // member ids who pressed "가고 싶다"
 }
+
+/** 장소를 새로 넣거나 고칠 때 쓰는 입력값 */
+export type PlaceInput = Omit<PlaceCard, 'id' | 'addedBy' | 'wantedBy'>;
 
 export type VoteKind = 'single' | 'yesno';
 
@@ -67,6 +70,8 @@ export interface PlanItem {
   time: string; // HH:mm
   placeId?: string;
   title: string;
+  /** 예약번호, 주의사항 같은 메모 */
+  note?: string;
   /** 이 일정으로 오기 위한 이동 */
   transitIn?: TransitLeg;
 }
@@ -86,6 +91,8 @@ export interface Trip {
   inviteCode?: string;
   /** 방장 멤버 id (내보내기 권한) */
   hostId?: string;
+  /** 켜져 있으면 새 멤버가 못 들어온다 (이미 있는 멤버는 같은 이름으로 재입장 가능) */
+  joinLocked?: boolean;
   members: Member[];
   places: PlaceCard[];
   votes: Vote[];

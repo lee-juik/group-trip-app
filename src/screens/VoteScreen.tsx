@@ -10,6 +10,7 @@ import { MeButton } from '../components/MeButton';
 import { Pill } from '../components/Pill';
 import { PressableScale } from '../components/PressableScale';
 import { Sheet } from '../components/Sheet';
+import { confirmAsync } from '../lib/util';
 import { useTrip } from '../store';
 import { c, categoryStyle, J, softShadow, t } from '../theme';
 import { CATEGORIES, Category, Trip, Vote } from '../types';
@@ -72,8 +73,10 @@ function OptionRow({ emoji, tint, label, sub, picked, revealed, count, total, wi
 
 function VoteCard({ vote, index }: { vote: Vote; index: number }) {
   const { state, dispatch } = useTrip();
-  const { trip, meId } = state;
+  const { trip } = state;
   const r = tally(vote, trip);
+  // 마감됐거나 결과가 열렸거나 마감 시간이 지났으면 더 못 바꾼다 (서버도 같은 규칙)
+  const locked = vote.closed || r.revealed || Date.parse(vote.deadline) < Date.now();
   const place = (id: string) => trip.places.find((p) => p.id === id);
   const label = (id: string) => (id === 'yes' ? '좋아요' : id === 'no' ? '별로예요' : place(id)?.name ?? '?');
   const options = vote.kind === 'yesno' ? ['yes', 'no'] : vote.optionIds;
@@ -109,7 +112,7 @@ function VoteCard({ vote, index }: { vote: Vote; index: number }) {
             count={r.counts[o] ?? 0}
             total={r.total}
             winner={r.revealed && r.majority === o}
-            disabled={vote.closed}
+            disabled={locked}
             onPress={() => dispatch({ type: 'castVote', voteId: vote.id, optionId: o })}
           />
         ))}
@@ -152,7 +155,11 @@ function VoteCard({ vote, index }: { vote: Vote; index: number }) {
           }} />
       )}
       {!vote.closed && !r.revealed && (
-        <Button title="지금 마감하기" kind="plain" fg={c.sub} style={{ paddingVertical: 4 }} onPress={() => { success(); dispatch({ type: 'closeVote', voteId: vote.id }); }} />
+        <Button title="지금 마감하기" kind="plain" fg={c.sub} style={{ paddingVertical: 4 }}
+          onPress={async () => {
+            if (!(await confirmAsync('지금 마감할까요?', `${r.voted}/${r.total}명이 투표했어요. 마감하면 바로 결과가 열리고 더 못 바꿔요.`, '마감하기'))) return;
+            success(); dispatch({ type: 'closeVote', voteId: vote.id });
+          }} />
       )}
     </Animated.View>
   );
@@ -160,7 +167,7 @@ function VoteCard({ vote, index }: { vote: Vote; index: number }) {
 
 export function VoteScreen() {
   const { state, dispatch } = useTrip();
-  const { trip, meId } = state;
+  const { trip } = state;
   const [open, setOpen] = useState(false);
   const [cat, setCat] = useState<Category>('숙소');
   const [picked, setPicked] = useState<string[]>([]);
@@ -185,6 +192,12 @@ export function VoteScreen() {
       >
         <Button title="새 투표 열기" emoji="📣" onPress={() => setOpen(true)} />
         {trip.votes.map((v, i) => <VoteCard key={v.id} vote={v} index={i} />)}
+        {trip.votes.length === 0 && (
+          <View style={{ alignItems: 'center', paddingVertical: 30, gap: 6 }}>
+            <Text style={{ fontSize: 44 }}>🙋</Text>
+            <Text style={t.note}>아직 투표가 없어요. 숙소나 저녁 메뉴부터 정해볼까요?</Text>
+          </View>
+        )}
       </LargeHeaderScreen>
 
       <Sheet visible={open} title="새 투표 📣" onClose={() => setOpen(false)}>
@@ -211,7 +224,7 @@ export function VoteScreen() {
         </Group>
         <Group label="설정">
           <Field label="제목" placeholder={`${cat} 어디로 할까요?`} value={title} onChangeText={setTitle} />
-          <Field label="마감" placeholder="2" keyboardType="number-pad" value={days} onChangeText={setDays} last />
+          <Field label="마감" placeholder="2" keyboardType="number-pad" value={days} onChangeText={(v) => setDays(v.replace(/[^0-9]/g, '').slice(0, 2))} last />
         </Group>
         <Text style={[t.note, { marginLeft: 14, marginTop: -4, fontSize: 12 }]}>마감까지 며칠을 줄지 숫자로 적어주세요.</Text>
         <Button title="투표 시작!" emoji="🚀" disabled={!picked.length} onPress={start} />

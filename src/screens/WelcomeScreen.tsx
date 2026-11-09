@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +36,14 @@ export function WelcomeScreen() {
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
 
+  // 초대 링크(?code=XXXXXX)로 열었으면 코드를 미리 채운다
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const q = new URLSearchParams(window.location.search).get('code');
+    if (q && /^[A-Za-z0-9]{6}$/.test(q)) { setCode(q.toUpperCase()); setTab('join'); }
+    if (q) window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+
   const canJoin = name.trim() && code.trim().length >= 6;
   const canCreate = name.trim() && title.trim() && city.trim() && isDate(start) && isDate(end) && start <= end;
 
@@ -61,7 +69,7 @@ export function WelcomeScreen() {
           <Animated.View entering={FadeInUp.springify().damping(16)} style={{ gap: 6 }}>
             <Text style={{ fontSize: 46 }}>🧳✨</Text>
             <Text style={[t.hero, { fontSize: 34, lineHeight: 42 }]}>{'우리끼리\n여행 짜기'}</Text>
-            <Text style={[t.note, { fontSize: 15 }]}>인스타에서 본 곳 모으고, 몰래 투표하고, 일정까지 한 번에.</Text>
+            <Text style={[t.note, { fontSize: 15 }]}>가고 싶은 곳 모으고, 몰래 투표하고, 일정까지 한 번에.</Text>
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(80).springify().damping(16)} style={{ flexDirection: 'row', gap: 10 }}>
@@ -77,7 +85,7 @@ export function WelcomeScreen() {
             {tab === 'join' ? (
               <Animated.View key="join" entering={FadeInDown.springify().damping(18)} style={{ gap: 12 }}>
                 <Group label="초대 코드">
-                  <Field placeholder="예: C9FF09" value={code} onChangeText={(s) => setCode(s.toUpperCase())} autoCapitalize="characters" autoCorrect={false} maxLength={6}
+                  <Field placeholder="6자리 (예: C9FF09)" value={code} onChangeText={(s) => setCode(s.toUpperCase())} autoCapitalize="characters" autoCorrect={false} maxLength={6}
                     style={{ fontFamily: J, fontSize: 24, letterSpacing: 6 }} last />
                 </Group>
                 <Text style={[t.note, { textAlign: 'center' }]}>전에 들어왔던 방이면 같은 이름을 쓰세요. 새로 생기지 않고 그대로 이어져요.</Text>

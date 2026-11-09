@@ -39,7 +39,7 @@ export const t = {
   title: { fontFamily: J, fontSize: 22, color: c.ink },
   h: { fontFamily: J, fontSize: 18, color: c.ink },
   label: { fontFamily: J, fontSize: 15, color: c.ink },
-  small: { fontFamily: J, fontSize: 13, color: c.faint },
+  small: { fontFamily: J, fontSize: 13, color: c.sub },
   body: { fontFamily: G, fontSize: 15, lineHeight: 21, color: c.ink },
   note: { fontFamily: G, fontSize: 13, lineHeight: 18, color: c.sub },
 };

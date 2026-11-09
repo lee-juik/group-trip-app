@@ -59,7 +59,7 @@ export function ChatScreen({ chat }: { chat: ReturnType<typeof useChat> }) {
     if (!body.trim()) return;
     tap();
     setText('');
-    chat.send(body).catch(() => setText(body));
+    chat.send(body).catch(() => {}); // 실패하면 말풍선에 '실패'로 남고, 눌러서 다시 보낼 수 있다
   };
 
   return (
@@ -90,11 +90,11 @@ export function ChatScreen({ chat }: { chat: ReturnType<typeof useChat> }) {
           }
           const mine = r.m.memberId === meId;
           const who = name(r.m.memberId);
-          const left = r.m.pending || r.m.id.startsWith('fail-') ? 0 : chat.unreadCount(r.m);
+          const left = r.m.pending || r.m.failed ? 0 : chat.unreadCount(r.m);
           const time = (r.last || left > 0) ? (
             <View style={{ alignItems: mine ? 'flex-end' : 'flex-start', marginBottom: 2, flexShrink: 0 }}>
-              {left > 0 && <Text style={{ fontFamily: J, fontSize: 11, color: c.pink }}>{left}</Text>}
-              {r.last && <Text style={{ fontFamily: G, fontSize: 10, color: c.faint }}>{r.m.pending ? '보내는 중' : r.m.id.startsWith('fail-') ? '⚠️ 실패' : hm(r.m.createdAt)}</Text>}
+              {left > 0 && <Text style={{ fontFamily: J, fontSize: 12, color: c.pink }}>{left}</Text>}
+              {r.last && <Text style={{ fontFamily: G, fontSize: 11, color: r.m.failed ? c.pink : c.sub }}>{r.m.pending ? '보내는 중' : r.m.failed ? '⚠️ 실패 · 눌러서 다시' : hm(r.m.createdAt)}</Text>}
             </View>
           ) : null;
           return (
@@ -103,12 +103,13 @@ export function ChatScreen({ chat }: { chat: ReturnType<typeof useChat> }) {
               <View style={{ maxWidth: '76%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
                 {!mine && r.first && <Text style={{ fontFamily: J, fontSize: 12, color: c.sub, marginBottom: 3, marginLeft: 4 }}>{who?.name ?? '알 수 없음'}</Text>}
                 <View style={{ flexDirection: mine ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 5 }}>
-                  <View style={{
+                  <PressableScale disabled={!r.m.failed} haptic={false} onPress={() => { tap(); chat.retry(r.m.id); }} style={{
                     backgroundColor: mine ? c.ink : '#fff', borderRadius: 20, paddingVertical: 9, paddingHorizontal: 14, flexShrink: 1, opacity: r.m.pending ? 0.6 : 1,
                     borderTopRightRadius: mine && r.first ? 6 : 20, borderTopLeftRadius: !mine && r.first ? 6 : 20,
+                    borderWidth: r.m.failed ? 2 : 0, borderColor: c.pink,
                   }}>
                     <Text style={{ fontFamily: G, fontSize: 15, lineHeight: 21, color: mine ? '#fff' : c.ink }}>{r.m.body}</Text>
-                  </View>
+                  </PressableScale>
                   {time}
                 </View>
               </View>
@@ -127,6 +128,9 @@ export function ChatScreen({ chat }: { chat: ReturnType<typeof useChat> }) {
               <Text style={t.note}>{trip.members.length}명</Text>
             </View>
           </View>
+          <PressableScale onPress={() => { tap(); chat.reload(); }} hitSlop={8} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 15 }}>🔄</Text>
+          </PressableScale>
           <MeButton />
         </BlurView>
       </View>
