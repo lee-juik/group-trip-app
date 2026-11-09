@@ -9,6 +9,7 @@ import { Field, Group } from './Field';
 import { success } from './haptics';
 import { Pill } from './Pill';
 import { Sheet } from './Sheet';
+import { TimeField } from './TimeField';
 
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 
@@ -87,11 +88,11 @@ export function RegisterSheet({ visible, onClose, initial }: { visible: boolean;
             {trip.days.map((d, i) => <Pill key={d.date} label={`${i + 1}일 · ${md(d.date)}`} on={dayIndex === i} onPress={() => setDayIndex(i)} />)}
           </ScrollView>
           {dayIndex !== null && (
-            <Group><Field label="⏰ 시간" value={time} onChangeText={setTime} placeholder="12:00 또는 1230" keyboardType="numbers-and-punctuation" maxLength={7} last /></Group>
+            <Group><TimeField label="⏰ 시간" value={time} onChange={setTime} last /></Group>
           )}
           <Text style={[t.note, { marginHorizontal: 6 }]}>
             {dayIndex === null ? '모아보기에만 들어가요. 나중에 일정 탭에서 날짜에 넣을 수 있어요.'
-              : normalized ? `모아보기와 ${dayIndex + 1}일차 ${normalized}에 같이 들어가요.` : '시간은 12:00, 1230, 12시30분처럼 적어주세요.'}
+              : normalized ? `모아보기와 ${dayIndex + 1}일차 ${normalized}에 같이 들어가요.` : '시간을 골라주세요.'}
           </Text>
         </>
       )}

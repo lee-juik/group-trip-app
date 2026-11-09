@@ -11,6 +11,7 @@ import { MeButton } from '../components/MeButton';
 import { Pill } from '../components/Pill';
 import { PressableScale } from '../components/PressableScale';
 import { Sheet } from '../components/Sheet';
+import { TimeField } from '../components/TimeField';
 import { TransitLegView } from '../components/TransitLegView';
 import { mapsRoute, optimizeDay, planNewStops, Reorder } from '../lib/route';
 import { confirmAsync, mapsUrl, normTime, todayIndex } from '../lib/util';
@@ -22,7 +23,6 @@ const MODES: TransitMode[] = ['JR', '지하철', '버스', '도보', '택시', '
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 const DOT_COLORS = ['#FFE4D6', '#E8DEFF', '#FFF1C2', '#DCEBFF', '#DDF5E8'];
 const EMPTY_FLIGHT: Flight = { flightNo: '', from: '', to: '', depart: '', arrive: '' };
-const TIME_HINT = '12:00, 1230, 12시30분처럼 적어주세요';
 
 type SheetState =
   | { kind: 'route'; r: Reorder }
@@ -198,12 +198,10 @@ export function PlanScreen() {
       {/* 일정 추가 */}
       <Sheet visible={sheet?.kind === 'add'} title={`${dayIndex + 1}일차에 넣기`} onClose={close}>
         <Group>
-          <Field label="⏰ 시작" value={time} onChangeText={setTime} placeholder="12:00 또는 1230" keyboardType="numbers-and-punctuation" maxLength={7} />
+          <TimeField label="⏰ 시작" value={time} onChange={setTime} />
           <Field label="✍️ 직접" value={freeTitle} onChangeText={setFreeTitle} placeholder="호텔 체크인, 공항 도착처럼 직접 적기" maxLength={40} last />
         </Group>
-        <Text style={[t.note, { marginHorizontal: 6, marginTop: -6, color: addTime ? c.sub : c.orange }]}>
-          {addTime ? '여러 곳을 고르면 숙소에서 가까운 순서로 동선을 짜서 시간까지 넣어줘요.' : TIME_HINT}
-        </Text>
+        <Text style={[t.note, { marginHorizontal: 6, marginTop: -6 }]}>여러 곳을 고르면 숙소에서 가까운 순서로 동선을 짜서 시간까지 넣어줘요.</Text>
         <Group label="모아보기 후보 (가고 싶은 사람 많은 순)">
           {candidates.length === 0 && <Text style={[t.note, { padding: 16 }]}>모아보기에 카드가 아직 없어요.</Text>}
           {candidates.map((p, i) => {
@@ -234,10 +232,9 @@ export function PlanScreen() {
       {/* 일정 고치기 */}
       <Sheet visible={sheet?.kind === 'edit'} title="일정 고치기 ✏️" onClose={close}>
         <Group>
-          <Field label="⏰ 시간" value={edit.time} onChangeText={(v) => setEdit({ ...edit, time: v })} placeholder="12:00" keyboardType="numbers-and-punctuation" maxLength={7} />
+          <TimeField label="⏰ 시간" value={edit.time} onChange={(v) => setEdit({ ...edit, time: v })} />
           <Field label="이름" value={edit.title} onChangeText={(v) => setEdit({ ...edit, title: v })} maxLength={40} last />
         </Group>
-        {!editTime && <Text style={[t.note, { marginHorizontal: 6, marginTop: -6, color: c.orange }]}>{TIME_HINT}</Text>}
         <View style={{ backgroundColor: '#fff', borderRadius: 22, padding: 16 }}>
           <TextInput multiline value={edit.note} onChangeText={(v) => setEdit({ ...edit, note: v })} placeholder="메모 (예약번호, 집합 장소, 주의할 점)" placeholderTextColor={c.faint} maxLength={300}
             style={{ fontFamily: G, fontSize: 15, minHeight: 60, color: c.ink, textAlignVertical: 'top', outlineStyle: 'none' } as object} />
@@ -291,9 +288,9 @@ export function PlanScreen() {
             <Group>
               <Field label="노선" placeholder="난보쿠선, 쾌속 에어포트" value={leg.line ?? ''} onChangeText={(v) => setLeg({ ...leg, line: v })} />
               <Field label="타는 곳" value={leg.fromStop} onChangeText={(v) => setLeg({ ...leg, fromStop: v })} />
-              <Field label="출발" placeholder="14:10" value={leg.depart} onChangeText={(v) => setLeg({ ...leg, depart: v })} keyboardType="numbers-and-punctuation" maxLength={7} />
+              <TimeField label="출발" value={leg.depart} onChange={(v) => setLeg({ ...leg, depart: v })} />
               <Field label="내리는 곳" value={leg.toStop} onChangeText={(v) => setLeg({ ...leg, toStop: v })} />
-              <Field label="도착" placeholder="14:14" value={leg.arrive} onChangeText={(v) => setLeg({ ...leg, arrive: v })} keyboardType="numbers-and-punctuation" maxLength={7} />
+              <TimeField label="도착" value={leg.arrive} onChange={(v) => setLeg({ ...leg, arrive: v })} />
               <Field label="메모" placeholder="15분 간격" value={leg.note ?? ''} onChangeText={(v) => setLeg({ ...leg, note: v })} last />
             </Group>
             <Button title="저장" emoji="💾" disabled={!normTime(leg.depart) || !normTime(leg.arrive)}
@@ -309,11 +306,11 @@ export function PlanScreen() {
         <Group>
           <Field label="편명" placeholder="KE765" value={flight.flightNo} onChangeText={(v) => setFlight({ ...flight, flightNo: v })} autoCapitalize="characters" autoCorrect={false} maxLength={8} />
           <Field label="출발 공항" placeholder="인천" value={flight.from} onChangeText={(v) => setFlight({ ...flight, from: v })} maxLength={12} />
-          <Field label="출발 시간" placeholder="09:00" value={flight.depart} onChangeText={(v) => setFlight({ ...flight, depart: v })} keyboardType="numbers-and-punctuation" maxLength={7} />
+          <TimeField label="출발 시간" value={flight.depart} onChange={(v) => setFlight({ ...flight, depart: v })} />
           <Field label="도착 공항" placeholder="신치토세" value={flight.to} onChangeText={(v) => setFlight({ ...flight, to: v })} maxLength={12} />
-          <Field label="도착 시간" placeholder="12:10" value={flight.arrive} onChangeText={(v) => setFlight({ ...flight, arrive: v })} keyboardType="numbers-and-punctuation" maxLength={7} last />
+          <TimeField label="도착 시간" value={flight.arrive} onChange={(v) => setFlight({ ...flight, arrive: v })} last />
         </Group>
-        <Text style={[t.note, { marginHorizontal: 6, marginTop: -6 }]}>{TIME_HINT}. 공항은 비워도 돼요.</Text>
+        <Text style={[t.note, { marginHorizontal: 6, marginTop: -6 }]}>공항 이름은 비워도 돼요.</Text>
         <Button title="저장" emoji="💾" disabled={!flightOk} onPress={saveFlight} />
         {sheet?.kind === 'flight' && day[sheet.direction] && <Button title="비행기 지우기" kind="plain" fg={c.pink} onPress={removeFlight} />}
       </Sheet>
