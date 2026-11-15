@@ -115,8 +115,11 @@ export const catEmoji = (k: string) => EXPENSE_CATS.find((x) => x.key === k)?.em
 export interface Expense {
   id: string; title: string; amount: number; currency: Currency; rate: number; paidBy: string; splitAmong: string[];
   category: string; spentOn: string; isTransfer: boolean; createdBy: string | null;
+  /** 영수증 사진 (버킷 trip-photos 안 <trip_id>/receipts/...). 없으면 null */
+  receiptPath?: string | null;
+  receiptUrl?: string;
 }
-export type ExpenseInput = Omit<Expense, 'id' | 'createdBy'>;
+export type ExpenseInput = Omit<Expense, 'id' | 'createdBy' | 'receiptUrl'>;
 export const krwOf = (e: Pick<Expense, 'amount' | 'rate'>) => Math.round(e.amount * e.rate);
 
 const demoExpenses = (): Expense[] => [
@@ -127,7 +130,7 @@ const demoExpenses = (): Expense[] => [
 
 const toRow = (e: ExpenseInput) => ({
   title: e.title, amount: e.amount, currency: e.currency, rate: e.rate, paid_by: e.paidBy, split_among: e.splitAmong,
-  category: e.category, spent_on: e.spentOn, is_transfer: e.isTransfer,
+  category: e.category, spent_on: e.spentOn, is_transfer: e.isTransfer, receipt_path: e.receiptPath ?? null,
 });
 
 export function useExpenses() {
@@ -136,7 +139,32 @@ export function useExpenses() {
   const t = useLiveTable<Expense>('expenses', '*', (r) => ({
     id: r.id, title: r.title, amount: Number(r.amount), currency: r.currency, rate: Number(r.rate), paidBy: r.paid_by,
     splitAmong: r.split_among, category: r.category, spentOn: r.spent_on, isTransfer: r.is_transfer, createdBy: r.created_by,
+    receiptPath: r.receipt_path ?? null,
   }), demoExpenses, { col: 'created_at', asc: true });
+
+  // 영수증 사진 보기용 임시 주소
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (t.demo) return;
+    const need = t.rows.map((e) => e.receiptPath).filter((x): x is string => !!x && !(x in urls));
+    if (!need.length) return;
+    supabase.storage.from('trip-photos').createSignedUrls(need, 60 * 60 * 24).then(({ data }) => {
+      if (!data) return;
+      setUrls((u) => ({ ...u, ...Object.fromEntries(data.filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl as string])) }));
+    });
+  }, [t.rows, t.demo]);
+  const expenses = t.rows.map((e) => ({ ...e, receiptUrl: e.receiptPath ? (t.demo ? e.receiptPath : urls[e.receiptPath]) : undefined }));
+
+  /** 영수증 사진을 원본 그대로 올리고 경로를 돌려준다 (지출 저장할 때 같이 넣는다) */
+  const uploadReceipt = async (f: Picked): Promise<string | undefined> => {
+    if (t.demo) return f.uri;
+    const orig = await original(f);
+    const path = `${t.tripId}/receipts/${uuid()}.${orig.ext}`;
+    const { error } = await supabase.storage.from('trip-photos').upload(path, orig.body, { contentType: orig.type });
+    if (error) { showError('영수증 올리기 실패', new Error(error.message)); return undefined; }
+    if (Platform.OS === 'web') setUrls((u) => ({ ...u, [path]: URL.createObjectURL(orig.body as Blob) }));
+    return path;
+  };
 
   const add = (e: ExpenseInput) => {
     const id = uuid();
@@ -145,7 +173,7 @@ export function useExpenses() {
   const update = (id: string, e: ExpenseInput) =>
     t.write((xs) => xs.map((x) => (x.id === id ? { ...x, ...e } : x)), () => supabase.from('expenses').update(toRow(e)).eq('id', id), '지출 고치기');
   const remove = (id: string) => t.write((xs) => xs.filter((x) => x.id !== id), () => supabase.from('expenses').delete().eq('id', id), '지출 지우기');
-  return { expenses: t.rows, loaded: t.loaded, add, update, remove };
+  return { expenses, loaded: t.loaded, add, update, remove, uploadReceipt };
 }
 
 /** 멤버별 받을 돈(+) / 줄 돈(-), 원 단위 */
@@ -200,7 +228,7 @@ export const thumbPath = (path: string) => path.replace(/\.[^./]+$/, '') + '_s.j
 
 const demoPhotos = (): Photo[] => [];
 
-type Picked = { uri: string; width?: number; height?: number; file?: Blob; mimeType?: string; fileName?: string | null };
+export type Picked = { uri: string; width?: number; height?: number; file?: Blob; mimeType?: string; fileName?: string | null };
 
 export function usePhotos() {
   const { state } = useTrip();
@@ -238,7 +266,7 @@ export function usePhotos() {
         const path = `${t.tripId}/${id}.${orig.ext}`;
         const up = await supabase.storage.from('trip-photos').upload(path, orig.body, { contentType: orig.type, upsert: false });
         if (up.error) { showError('사진 올리기 실패', new Error(/size|large/i.test(up.error.message) ? '사진 한 장이 너무 커요 (50MB 넘음).' : up.error.message)); continue; }
-        if (small) await supabase.storage.from('trip-photos').upload(thumbPath(path), small.body, { contentType: 'image/jpeg', upsert: true });
+        if (small) await supabase.storage.from('trip-photos').upload(thumbPath(path), small.body, { contentType: 'image/jpeg', upsert: false });
         const { error } = await supabase.from('photos').insert({ id, trip_id: t.tripId, member_id: meId, path, taken_on: takenOn, width: f.width ?? small?.fullW, height: f.height ?? small?.fullH });
         if (error) { showError('사진 올리기 실패', new Error(error.message)); continue; }
         setUrls((u) => ({ ...u, ...(small ? { [thumbPath(path)]: small.preview } : {}) }));
