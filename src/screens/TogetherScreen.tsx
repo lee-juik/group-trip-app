@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Linking, Platform, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { Avatar } from '../components/Avatar';
@@ -15,6 +15,7 @@ import { Sheet } from '../components/Sheet';
 import {
   balances, catEmoji, Currency, CURRENCY, Expense, EXPENSE_CATS, ExpenseInput, fetchRate, krwOf, Photo, settle, Todo,
   useExpenses, usePhotos, useTodos,
+  LiveStatus,
 } from '../lib/together';
 import { confirmAsync, todayIndex } from '../lib/util';
 import { useTrip } from '../store';
@@ -43,13 +44,13 @@ function TodoRow({ todo, members, meId, onToggle, onOpen }: { todo: Todo; member
   const owner = todo.assignee ? members.find((m) => m.id === todo.assignee) : undefined;
   const mine = todo.checks.includes(meId);
   const everyone = !todo.assignee;
-  const done = everyone ? members.length > 0 && members.every((m) => todo.checks.includes(m.id)) : todo.checks.length > 0;
-  const canCheck = everyone || todo.assignee === meId || todo.checks.includes(meId);
+  const done = everyone ? members.length > 0 && members.every((m) => todo.checks.includes(m.id)) : todo.checks.includes(todo.assignee!);
+  const canCheck = everyone || todo.assignee === meId;
   return (
     <Animated.View layout={LinearTransition.springify().damping(18)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14 }}>
       <PressableScale onPress={onToggle} disabled={!canCheck} hitSlop={8}
-        style={{ width: 30, height: 30, borderRadius: 10, borderWidth: 2.5, borderColor: mine || done ? c.green : c.line, backgroundColor: mine || done ? c.mint : '#fff', alignItems: 'center', justifyContent: 'center', opacity: canCheck ? 1 : 0.5 }}>
-        {(mine || (!everyone && done)) && <Text style={{ fontFamily: J, fontSize: 16, color: c.green }}>✓</Text>}
+        style={{ width: 30, height: 30, borderRadius: 10, borderWidth: 2.5, borderColor: (everyone ? mine : done) ? c.green : c.line, backgroundColor: (everyone ? mine : done) ? c.mint : '#fff', alignItems: 'center', justifyContent: 'center', opacity: canCheck ? 1 : 0.5 }}>
+        {(everyone ? mine : done) && <Text style={{ fontFamily: J, fontSize: 16, color: c.green }}>✓</Text>}
       </PressableScale>
       <PressableScale scaleTo={0.98} onPress={onOpen} style={{ flex: 1, gap: 3 }}>
         <Text style={[t.label, done && { color: c.sub, textDecorationLine: 'line-through' }]}>{todo.title}</Text>
@@ -66,37 +67,53 @@ function TodoRow({ todo, members, meId, onToggle, onOpen }: { todo: Todo; member
   );
 }
 
+/** 인터넷이 약할 때: 빈 화면 대신 지금 무엇을 보고 있는지 알려준다 */
+function LiveNote({ status, savedAt }: { status: LiveStatus; savedAt?: number }) {
+  if (status === 'live') return null;
+  const at = savedAt ? new Date(savedAt) : undefined;
+  const when = at ? `${at.getMonth() + 1}/${at.getDate()} ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}` : '';
+  const text = status === 'loading' ? '불러오는 중…'
+    : status === 'cached' ? `📡 인터넷이 약해요. 마지막으로 받아 둔 내용이에요${when ? ` (${when})` : ''}. 연결되면 알아서 새로 받아요.`
+    : '📡 인터넷이 약해서 아직 못 불러왔어요. 지워진 게 아니에요! 연결되면 알아서 나와요.';
+  return (
+    <View style={{ backgroundColor: status === 'loading' ? '#fff' : '#FFF3C9', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1.5, borderColor: c.line }}>
+      <Text style={{ fontFamily: G, fontSize: 13, color: c.ink, lineHeight: 19 }}>{text}</Text>
+    </View>
+  );
+}
+
 function TodoSection() {
   const { trip, meId } = useTrip().state;
-  const { todos, add, toggle, update, remove } = useTodos();
+  const { todos, add, toggle, update, remove, status, savedAt } = useTodos();
   const [title, setTitle] = useState('');
   const [assignee, setAssignee] = useState<string | null>(null);
   const [open, setOpen] = useState<Todo | null>(null);
   const [edit, setEdit] = useState({ title: '', assignee: null as string | null });
   const members = trip.members;
-  const isDone = (x: Todo) => (x.assignee ? x.checks.length > 0 : members.every((m) => x.checks.includes(m.id)));
+  const isDone = (x: Todo) => (x.assignee ? x.checks.includes(x.assignee) : members.every((m) => x.checks.includes(m.id)));
   const doneCount = todos.filter(isDone).length;
-  const myLeft = todos.filter((x) => (x.assignee ? x.assignee === meId && !x.checks.length : !x.checks.includes(meId))).length;
+  const myLeft = todos.filter((x) => (x.assignee ? x.assignee === meId && !x.checks.includes(meId) : !x.checks.includes(meId))).length;
   const sorted = [...todos].sort((a, b) => Number(isDone(a)) - Number(isDone(b)));
-  const submit = (s = title) => { const v = s.trim(); if (!v) return; add(v, assignee); success(); setTitle(''); };
+  const submit = (s = title) => { const v = s.trim(); if (!v) return; if (todos.some((x) => x.title === v)) { setTitle(''); return; } add(v, assignee); success(); setTitle(''); setAssignee(null); };
 
   return (
     <>
+      <LiveNote status={status} savedAt={savedAt} />
       <View style={[card, { backgroundColor: c.mint, gap: 4 }]}>
         <Text style={{ fontFamily: J, fontSize: 14, color: c.green }}>준비물 · 할 일</Text>
         <Text style={{ fontFamily: J, fontSize: 30, color: c.ink }}>{doneCount}/{todos.length} 끝</Text>
-        <Text style={{ fontFamily: G, fontSize: 13, color: c.green }}>{myLeft ? `내가 챙길 게 ${myLeft}개 남았어요` : todos.length ? '내 건 다 챙겼어요 🎉' : '같이 챙길 것을 적어 보세요'}</Text>
+        <Text style={{ fontFamily: G, fontSize: 13, color: c.green }}>{myLeft ? `내가 챙길 게 ${myLeft}개 남았어요` : todos.length ? '내 건 다 챙겼어요 🎉' : status === 'live' ? '같이 챙길 것을 적어 보세요' : ' '}</Text>
       </View>
 
       <Group>
-        <Field placeholder="예) 여권, 야키니쿠 예약하기" value={title} onChangeText={setTitle} onSubmitEditing={() => submit()} returnKeyType="done" last />
+        <Field placeholder="예) 여권, 야키니쿠 예약하기" maxLength={200} value={title} onChangeText={setTitle} onSubmitEditing={() => submit()} returnKeyType="done" last />
       </Group>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         <Pill label="각자 챙기기" emoji="👥" on={assignee === null} onPress={() => setAssignee(null)} />
         {members.map((m) => <Pill key={m.id} label={`${m.name} 담당`} on={assignee === m.id} onPress={() => setAssignee(m.id)} />)}
       </View>
       <Button title="넣기" emoji="➕" disabled={!title.trim()} onPress={() => submit()} />
-      {todos.length < 3 && (
+      {status === 'live' && todos.length < 3 && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {SUGGEST.filter((s) => !todos.some((x) => x.title === s)).map((s) => (
             <PressableScale key={s} onPress={() => submit(s)} style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 7, paddingHorizontal: 11, borderWidth: 1.5, borderColor: c.line }}>
@@ -119,7 +136,7 @@ function TodoSection() {
       <Text style={[t.note, { textAlign: 'center', fontSize: 12 }]}>각자 챙기기는 모두가 체크해야 끝나요. 이름을 누르면 고칠 수 있어요.</Text>
 
       <Sheet visible={!!open} title="준비물 고치기" onClose={() => setOpen(null)}>
-        <Group><Field label="이름" value={edit.title} onChangeText={(v) => setEdit({ ...edit, title: v })} last /></Group>
+        <Group><Field label="이름" maxLength={200} value={edit.title} onChangeText={(v) => setEdit({ ...edit, title: v })} last /></Group>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           <Pill label="각자 챙기기" emoji="👥" on={edit.assignee === null} onPress={() => setEdit({ ...edit, assignee: null })} />
           {members.map((m) => <Pill key={m.id} label={`${m.name} 담당`} on={edit.assignee === m.id} onPress={() => setEdit({ ...edit, assignee: m.id })} />)}
@@ -147,16 +164,19 @@ function ExpenseSheet({ visible, initial, onClose, store }: { visible: boolean; 
   const [f, setF] = useState<ExpenseInput>(blank);
   const [amountText, setAmountText] = useState('');
   const [rateText, setRateText] = useState('');
+  const curRef = useRef<Currency>('JPY');
+  const [rateBusy, setRateBusy] = useState(false);
   useEffect(() => {
     if (!visible) return;
     const x = initial ? { ...initial } : blank();
     setReceiptPreview(initial?.receiptUrl);
+    curRef.current = x.currency; setRateBusy(false);
     setF(x); setAmountText(initial ? String(initial.amount) : ''); setRateText(String(x.rate));
-    if (!initial && !lastRate) fetchRate('JPY').then((r) => { if (r) { setF((y) => ({ ...y, rate: r })); setRateText(String(r)); } });
+    if (!initial && !lastRate) fetchRate('JPY').then((r) => { if (r && curRef.current === 'JPY') { setF((y) => ({ ...y, rate: r })); setRateText(String(r)); } });
   }, [visible]);
-  const amount = Number(amountText.replace(/[^\d.]/g, ''));
+  const amount = /^\d+(\.\d{1,2})?$/.test(amountText.trim()) ? Number(amountText.trim()) : 0;
   const rate = f.currency === 'KRW' ? 1 : Number(rateText);
-  const ok = f.title.trim() && amount > 0 && rate > 0 && f.splitAmong.length > 0;
+  const ok = f.title.trim() && amount > 0 && amount < 1e9 && rate > 0 && rate < 100000 && !rateBusy && f.splitAmong.length > 0;
   const each = ok ? krwOf({ amount, rate }) / f.splitAmong.length : 0;
   /** 영수증: 카메라로 찍거나 앨범에서 고른다 */
   const addReceipt = async (camera: boolean) => {
@@ -170,12 +190,18 @@ function ExpenseSheet({ visible, initial, onClose, store }: { visible: boolean; 
     setReceiptBusy(false);
     if (path) setF((y) => ({ ...y, receiptPath: path })); else setReceiptPreview(undefined);
   };
+  // 통화를 바꾸면 그 통화의 환율로 바꾼다. 받아오는 동안은 환율 칸을 비우고 저장을 막는다
+  // (늦게 온 응답이 다른 통화의 환율을 덮어쓰지 않도록 마지막으로 고른 통화만 받는다)
   const setCur = async (cur: Currency) => {
-    setF({ ...f, currency: cur });
-    if (cur === 'KRW') return;
-    const prev = [...expenses].reverse().find((e) => e.currency === cur)?.rate;
-    const r = prev ?? (await fetchRate(cur)) ?? (cur === 'USD' ? 1400 : 9.3);
-    setRateText(String(r));
+    curRef.current = cur;
+    setF((y) => ({ ...y, currency: cur }));
+    if (cur === 'KRW') { setRateBusy(false); return; }
+    const prev = [...expenses].reverse().find((e) => e.currency === cur && !e.isTransfer)?.rate;
+    if (prev) { setRateText(String(prev)); setRateBusy(false); return; }
+    setRateText(''); setRateBusy(true);
+    const r = (await fetchRate(cur)) ?? (cur === 'USD' ? 1400 : 9.3);
+    if (curRef.current !== cur) return;
+    setRateText(String(r)); setRateBusy(false);
   };
   const save = () => {
     if (!ok) return;
@@ -188,14 +214,14 @@ function ExpenseSheet({ visible, initial, onClose, store }: { visible: boolean; 
   return (
     <Sheet visible={visible} title={initial ? '지출 고치기' : '얼마 썼어요? 💸'} onClose={onClose}>
       <Group>
-        <Field label="어디에" placeholder="스프카레 가라쿠" value={f.title} onChangeText={(v) => setF({ ...f, title: v })} />
-        <Field label={`금액 ${CURRENCY[f.currency].sign}`} placeholder="7200" keyboardType="decimal-pad" inputMode="decimal" value={amountText} onChangeText={setAmountText} last={f.currency === 'KRW'} />
-        {f.currency !== 'KRW' && <Field label="환율" placeholder="9.3" keyboardType="decimal-pad" inputMode="decimal" value={rateText} onChangeText={setRateText} last />}
+        <Field label="어디에" placeholder="스프카레 가라쿠" maxLength={100} value={f.title} onChangeText={(v) => setF({ ...f, title: v })} />
+        <Field label={`금액 ${CURRENCY[f.currency].sign}`} placeholder="7200" keyboardType="decimal-pad" inputMode="decimal" value={amountText} maxLength={12} onChangeText={(v) => setAmountText(v.replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10)).replace(/,/g, '').replace(/[^\d.]/g, ''))} last={f.currency === 'KRW'} />
+        {f.currency !== 'KRW' && <Field label="환율" placeholder="9.3" keyboardType="decimal-pad" inputMode="decimal" value={rateText} maxLength={8} onChangeText={(v) => setRateText(v.replace(',', '.').replace(/[^\d.]/g, ''))} last />}
       </Group>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {(['JPY', 'KRW', 'USD'] as Currency[]).map((k) => <Pill key={k} label={`${CURRENCY[k].sign} ${CURRENCY[k].label}`} on={f.currency === k} onPress={() => setCur(k)} />)}
       </View>
-      {f.currency !== 'KRW' && <Text style={[t.note, { marginHorizontal: 6 }]}>1{CURRENCY[f.currency].label} = {rateText || '?'}원으로 계산해요{amount > 0 && rate > 0 ? ` · ${won(amount * rate)}` : ''}</Text>}
+      {f.currency !== 'KRW' && <Text style={[t.note, { marginHorizontal: 6 }]}>{rateBusy ? '오늘 환율을 가져오는 중…' : `1${CURRENCY[f.currency].label} = ${rateText || '?'}원으로 계산해요`}{amount > 0 && rate > 0 ? ` · ${won(amount * rate)}` : ''}</Text>}
 
       <Text style={[t.small, { marginLeft: 6 }]}>무엇에</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -269,6 +295,7 @@ function SettleSection() {
 
   return (
     <>
+      <LiveNote status={store.status} savedAt={store.savedAt} />
       <View style={[card, { backgroundColor: c.butter, gap: 6 }]}>
         <Text style={{ fontFamily: J, fontSize: 14, color: '#8A6410' }}>우리가 쓴 돈</Text>
         <Text style={{ fontFamily: J, fontSize: 32, color: c.ink }}>{won(total)}</Text>
@@ -284,7 +311,7 @@ function SettleSection() {
 
       <View style={[card, { gap: 10 }]}>
         <Text style={t.label}>🤝 누가 누구에게</Text>
-        {plan.length === 0 && <Text style={t.note}>{expenses.length ? '다 맞아요! 주고받을 돈이 없어요 🎉' : '지출을 넣으면 여기서 정산해 줘요'}</Text>}
+        {plan.length === 0 && <Text style={t.note}>{expenses.length ? '다 맞아요! 주고받을 돈이 없어요 🎉' : store.status === 'live' ? '지출을 넣으면 여기서 정산해 줘요' : '불러오는 중이에요…'}</Text>}
         {plan.map((p, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={[t.body, { flex: 1 }]}><Text style={{ fontFamily: J }}>{name(p.from)}</Text> → <Text style={{ fontFamily: J }}>{name(p.to)}</Text>  {won(p.won)}</Text>
@@ -337,7 +364,7 @@ function SettleSection() {
 
 function PhotoSection() {
   const { trip, meId } = useTrip().state;
-  const { photos, upload, setCaption, remove } = usePhotos();
+  const { photos, upload, setCaption, remove, status, savedAt } = usePhotos();
   const { dates, def } = useTripDates();
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [open, setOpen] = useState<Photo | null>(null);
@@ -360,6 +387,7 @@ function PhotoSection() {
 
   return (
     <>
+      <LiveNote status={status} savedAt={savedAt} />
       <View style={[card, { backgroundColor: '#FFDDEB', gap: 4 }]}>
         <Text style={{ fontFamily: J, fontSize: 14, color: c.pink }}>우리 앨범</Text>
         <Text style={{ fontFamily: J, fontSize: 30, color: c.ink }}>{photos.length}장</Text>
@@ -369,7 +397,7 @@ function PhotoSection() {
       <Button title={busy ? `올리는 중… ${busy.done}/${busy.total}` : `${dates.indexOf(day) >= 0 ? `${dates.indexOf(day) + 1}일차 ` : ''}사진 올리기`} emoji="📷" disabled={!!busy} onPress={pick} />
 
       <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ gap: 14 }}>
-        {photos.length === 0 && <Text style={[t.note, { textAlign: 'center', paddingVertical: 24 }]}>아직 사진이 없어요. 첫 사진을 올려 볼까요? 📸</Text>}
+        {photos.length === 0 && status === 'live' && <Text style={[t.note, { textAlign: 'center', paddingVertical: 24 }]}>아직 사진이 없어요. 첫 사진을 올려 볼까요? 📸</Text>}
         {size > 0 && groups.map((g) => {
           const di = dates.indexOf(g);
           const list = photos.filter((p) => p.takenOn === g);
@@ -395,7 +423,7 @@ function PhotoSection() {
           <>
             {(cur.thumbUrl || cur.url) && <Image source={{ uri: cur.thumbUrl || cur.url }} style={{ width: '100%', aspectRatio: cur.width && cur.height ? cur.width / cur.height : 1, borderRadius: 20, backgroundColor: c.lilac }} resizeMode="contain" />}
             {cur.memberId === meId ? (
-              <Group><Field placeholder="한 줄 남기기 (예: 오타루 운하 야경 🏮)" value={caption} onChangeText={setCap} onBlur={() => caption !== (cur.caption ?? '') && setCaption(cur, caption.trim())} last /></Group>
+              <Group><Field placeholder="한 줄 남기기 (예: 오타루 운하 야경 🏮)" maxLength={300} value={caption} onChangeText={setCap} onBlur={() => caption !== (cur.caption ?? '') && setCaption(cur, caption.trim())} last /></Group>
             ) : !!cur.caption && <Text style={[t.body, { textAlign: 'center' }]}>{cur.caption}</Text>}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {cur.url && <Button title="원본 열기 · 저장" emoji="⬇️" kind="soft" style={{ flex: 1 }} onPress={() => Linking.openURL(cur.url!)} />}

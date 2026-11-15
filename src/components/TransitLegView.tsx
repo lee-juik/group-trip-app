@@ -64,7 +64,7 @@ export function TransitLegView({ leg, prev, city, onEdit }: { leg: TransitLeg; p
     <View style={{ gap: 6 }}>
       {xfer && (
         <View style={{ backgroundColor: c.butter, borderRadius: 16, paddingVertical: 9, paddingHorizontal: 12, gap: 3 }}>
-          <Text style={{ fontFamily: J, fontSize: 15, color: '#8A6410' }}>🔁 {xfer.at}역에서 갈아타요</Text>
+          <Text style={{ fontFamily: J, fontSize: 15, color: '#8A6410' }}>🔁 {xfer.at}에서 갈아타요</Text>
           <Text style={{ fontFamily: G, fontSize: 13, color: '#8A6410' }}>{xfer.from} → {xfer.to}</Text>
           {xfer.tip && <Text style={{ fontFamily: G, fontSize: 12, color: '#8A6410' }}>👣 {xfer.tip}</Text>}
         </View>

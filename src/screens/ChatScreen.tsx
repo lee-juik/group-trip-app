@@ -108,7 +108,7 @@ export function ChatScreen({ chat }: { chat: ReturnType<typeof useChat> }) {
                     borderTopRightRadius: mine && r.first ? 6 : 20, borderTopLeftRadius: !mine && r.first ? 6 : 20,
                     borderWidth: r.m.failed ? 2 : 0, borderColor: c.pink,
                   }}>
-                    <Text style={{ fontFamily: G, fontSize: 15, lineHeight: 21, color: mine ? '#fff' : c.ink }}>{r.m.body}</Text>
+                    <Text style={[{ fontFamily: G, fontSize: 15, lineHeight: 21, color: mine ? '#fff' : c.ink }, Platform.OS === 'web' && ({ overflowWrap: 'anywhere', wordBreak: 'break-word' } as object)]}>{r.m.body}</Text>
                   </PressableScale>
                   {time}
                 </View>

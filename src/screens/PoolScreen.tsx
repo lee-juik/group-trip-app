@@ -79,7 +79,7 @@ const Tag = ({ children }: { children: string }) => (
  * 숙소 카드: 예약 사이트 최저가 비교 링크. 여기어때는 공개 API·검색 주소가 없어서
  * 숙소 이름을 복사해 두고 해외 숙소 화면을 연다 (검색창에 붙여넣기).
  */
-function HotelPriceLinks({ name, city, days }: { name: string; city: string; days: { date: string }[] }) {
+function HotelPriceLinks({ name, city, days, members }: { name: string; city: string; days: { date: string }[]; members: number }) {
   const [copied, setCopied] = useState(false);
   const inD = days[0]?.date, outD = days[days.length - 1]?.date;
   const q = encodeURIComponent(name.replace(/\(.*?\)/g, '').trim() + ' ' + city);
@@ -87,7 +87,7 @@ function HotelPriceLinks({ name, city, days }: { name: string; city: string; day
   const links: { label: string; emoji: string; url: string; copy?: boolean }[] = [
     { label: '여기어때', emoji: '🏨', url: 'https://www.yeogi.com/accommodation-overseas', copy: true },
     { label: '구글 호텔', emoji: '🔎', url: `https://www.google.com/travel/search?q=${q}` },
-    { label: '부킹닷컴', emoji: '🛎', url: `https://www.booking.com/searchresults.ko.html?ss=${q}${dates}&group_adults=2&no_rooms=1` },
+    { label: '부킹닷컴', emoji: '🛎', url: `https://www.booking.com/searchresults.ko.html?ss=${q}${dates}&group_adults=${Math.max(1, members)}&no_rooms=${Math.max(1, Math.ceil(members / 2))}` },
     { label: '아고다', emoji: '🌏', url: `https://www.agoda.com/ko-kr/search?textToSearch=${q}` },
   ];
   const open = async (l: (typeof links)[number]) => {
@@ -104,7 +104,7 @@ function HotelPriceLinks({ name, city, days }: { name: string; city: string; day
           </PressableScale>
         ))}
       </View>
-      <Text style={t.note}>{copied ? '숙소 이름을 복사했어요. 여기어때 검색창에 붙여넣어 주세요 📋' : '여행 날짜로 바로 찾아줘요. 가격은 사이트마다 달라요.'}</Text>
+      <Text style={t.note}>{copied ? '숙소 이름을 복사했어요. 여기어때 검색창에 붙여넣어 주세요 📋' : '부킹닷컴은 여행 날짜·인원으로 바로 찾아줘요. 가격은 사이트마다 달라요.'}</Text>
     </View>
   );
 }
@@ -145,7 +145,7 @@ function PlaceDetail({ place, onClose, onEdit }: { place: PlaceCard | null; onCl
             <Button title="구글맵에서 열기" emoji="🗺" kind="soft" style={{ flex: 1, paddingVertical: 12 }} onPress={() => openLink(mapsUrl(p, trip.city))} />
             {!!p.sourceUrl && <Button title="링크 열기" emoji="🔗" kind="soft" style={{ flex: 1, paddingVertical: 12 }} onPress={() => openLink(p.sourceUrl!)} />}
           </View>
-          {p.category === '숙소' && <HotelPriceLinks name={p.name} city={trip.city} days={trip.days} />}
+          {p.category === '숙소' && <HotelPriceLinks name={p.name} city={trip.city} days={trip.days} members={trip.members.length} />}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button title="수정" emoji="✏️" style={{ flex: 1 }} onPress={() => onEdit(p)} />
             <Button title="지우기" emoji="🗑" kind="soft" fg={c.pink} style={{ flex: 1 }} onPress={remove} />

@@ -142,7 +142,7 @@ export function PlanScreen() {
             </View>
           )}
 
-          <DayTransitSummary legs={day.items.map((x) => x.transitIn).filter((x): x is TransitLeg => !!x)} />
+          <DayTransitSummary legs={day.items.slice(1).map((x) => x.transitIn).filter((x): x is TransitLeg => !!x)} />
 
           <View>
             {day.items.map((it, idx) => {
@@ -175,7 +175,7 @@ export function PlanScreen() {
                     {!last && (() => {
                       const next = day.items[idx + 1];
                       return next.transitIn ? (
-                        <TransitLegView leg={next.transitIn} prev={it.transitIn} city={trip.city} onEdit={() => openLeg(next.id, it.title, next.title, next.transitIn)} />
+                        <TransitLegView leg={next.transitIn} prev={idx > 0 ? it.transitIn : undefined} city={trip.city} onEdit={() => openLeg(next.id, it.title, next.title, next.transitIn)} />
                       ) : (
                         <PressableScale onPress={() => openLeg(next.id, it.title, next.title)} style={{ alignSelf: 'flex-start', borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: '#D5CDEB', paddingVertical: 7, paddingHorizontal: 12 }}>
                           <Text style={{ fontFamily: J, fontSize: 13, color: c.sub }}>＋ 어떻게 이동할까요?</Text>
