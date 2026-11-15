@@ -8,13 +8,19 @@ const LINES: { test: RegExp; info: LineInfo }[] = [
   { test: /도자이|東西/, info: { code: 'T', name: '도자이선', color: '#F08C00' } },
   { test: /도호|東豊/, info: { code: 'H', name: '도호선', color: '#0079C2' } },
   { test: /노면|市電|전차/, info: { code: '電', name: '노면전차', color: '#5C8A3A' } },
-  { test: /에어포트|JR|하코다테|치토세|쾌속/, info: { code: 'JR', name: 'JR', color: '#2E9B48' } },
   { test: /셔틀/, info: { code: '🚌', name: '셔틀버스', color: '#C0663D' } },
 ];
 
+const JR: LineInfo = { code: 'JR', name: 'JR', color: '#2E9B48' };
+
+/** 탈것 종류를 먼저 본다 (버스 노선 이름에 '치토세'가 들어 있다고 JR 이 되면 안 된다) */
 export function lineOf(leg: TransitLeg): LineInfo | undefined {
-  const s = `${leg.line ?? ''} ${leg.mode}`;
-  return LINES.find((l) => l.test.test(s))?.info;
+  const s = leg.line ?? '';
+  if (leg.mode === 'JR') return JR;
+  const pick = (codes: string[]) => LINES.find((l) => codes.includes(l.info.code) && l.test.test(s))?.info;
+  if (leg.mode === '지하철') return pick(['N', 'T', 'H', '電']);
+  if (leg.mode === '버스') return pick(['電', '🚌']);
+  return undefined;
 }
 
 /** 역 이름: 한국어로 적어도 현지 표지판(일본어·영어)과 역 번호를 같이 보여준다 */
@@ -49,21 +55,26 @@ export const stopQuery = (stop: string, city: string) => stationOf(stop)?.mapQue
 
 export const sameStop = (a?: string, b?: string) => !!a && !!b && stopKey(a) === stopKey(b);
 
-/** 앞 구간에서 내린 역에서 다른 노선으로 갈아타는지 */
+const hm = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+/** 앞 구간에서 내린 역에서 곧바로(30분 안에) 다른 노선으로 갈아타는지 */
 export function transferInfo(prev: TransitLeg | undefined, leg: TransitLeg): { at: string; from: string; to: string; tip?: string } | undefined {
-  if (!prev || !sameStop(prev.toStop, leg.fromStop)) return undefined;
+  if (!prev || leg.mode === '도보' || prev.mode === '도보' || !sameStop(prev.toStop, leg.fromStop)) return undefined;
+  const wait = hm(leg.depart) - hm(prev.arrive);
+  if (!(wait >= 0 && wait <= 30)) return undefined;   // 내려서 밥 먹고 다시 타는 건 환승이 아니다
   const a = lineOf(prev), b = lineOf(leg);
   const from = a?.name ?? prev.line ?? prev.mode;
   const to = b?.name ?? leg.line ?? leg.mode;
   if (from === to && prev.mode === leg.mode) return undefined;
-  const at = stopKey(leg.fromStop);
+  const key = stopKey(leg.fromStop);
+  const tram = stationOf(leg.fromStop)?.codes?.includes('電');
+  const at = tram || leg.mode === '버스' ? leg.fromStop : `${key}역`;
   const jr = (x?: LineInfo) => x?.code === 'JR';
   const sub = (x?: LineInfo) => !!x && ['N', 'T', 'H'].includes(x.code);
   let tip: string | undefined;
-  if (at === '삿포로' && ((jr(a) && sub(b)) || (sub(a) && jr(b))))
+  if (key === '삿포로' && ((jr(a) && sub(b)) || (sub(a) && jr(b))))
     tip = jr(a)
       ? 'JR 개찰구를 나와서 지하로 내려가 "地下鉄 / Subway" 표지판을 따라가요. 걸어서 5~10분.'
       : '지하철 개찰구를 나와서 "JR" 표지판을 따라 올라가요. 걸어서 5~10분, JR 표는 따로 사요.';
-  if (leg.mode === '도보') return undefined;
   return { at, from, to, tip };
 }

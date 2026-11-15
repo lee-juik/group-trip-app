@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { useSession, useTrip } from '../store';
 import { supabase } from './supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showError, uuid } from './util';
+
+/** loading: 처음 받는 중 · live: 서버 값 · cached: 휴대폰에 저장해 둔 마지막 값(서버에 못 닿음) · offline: 저장본도 없음 */
+export type LiveStatus = 'loading' | 'live' | 'cached' | 'offline';
 
 /**
  * '함께' 탭(준비물·정산·사진)의 데이터. 여행 정보(store)와 따로 움직이도록
@@ -13,18 +17,40 @@ function useLiveTable<T extends { id: string }>(table: string, select: string, m
   const tripId = useTrip().state.trip.id;
   const isDemo = mode === 'demo';
   const [rows, setRows] = useState<T[]>(() => (isDemo ? demo() : []));
-  const [loaded, setLoaded] = useState(isDemo);
+  const [status, setStatus] = useState<LiveStatus>(isDemo ? 'live' : 'loading');
+  const [savedAt, setSavedAt] = useState<number | undefined>();
   const loadRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (isDemo) return;
     let alive = true;
+    let gotServer = false;
+    const key = `together:${table}:${tripId}`;
     const load = async () => {
-      const { data, error } = await supabase.from(table).select(select).eq('trip_id', tripId).order(order.col, { ascending: order.asc }).limit(1000);
-      if (!alive || error || !data) return;
-      setRows((data as unknown[]).map(map)); setLoaded(true);
+      let res: { data: unknown; error: unknown };
+      try { res = await supabase.from(table).select(select).eq('trip_id', tripId).order(order.col, { ascending: order.asc }).limit(1000); }
+      catch (e) { res = { data: null, error: e }; }
+      if (!alive) return;
+      if (res.error || !res.data) {
+        // 인터넷이 끊겼을 때: 화면을 비우지 않고 마지막 저장본을 그대로 둔다
+        setStatus((s) => (s === 'live' || s === 'cached' ? 'cached' : 'offline'));
+        return;
+      }
+      gotServer = true;
+      const next = (res.data as unknown[]).map(map);
+      setRows(next); setStatus('live'); setSavedAt(Date.now());
+      AsyncStorage.setItem(key, JSON.stringify({ rows: next, at: Date.now() })).catch(() => {});
     };
     loadRef.current = load;
+    // 휴대폰에 저장해 둔 마지막 값을 먼저 보여 주고, 서버 값이 오면 바꾼다
+    AsyncStorage.getItem(key).then((raw) => {
+      if (!alive || gotServer || !raw) return;
+      try {
+        const c = JSON.parse(raw) as { rows: T[]; at: number };
+        if (!Array.isArray(c.rows)) return;
+        setRows(c.rows); setSavedAt(c.at); setStatus((s) => (s === 'live' ? s : 'cached'));
+      } catch {}
+    }).catch(() => {});
     load();
     let t: ReturnType<typeof setTimeout> | undefined;
     const soon = () => { clearTimeout(t); t = setTimeout(load, 250); };
@@ -45,12 +71,13 @@ function useLiveTable<T extends { id: string }>(table: string, select: string, m
   const write = useCallback(async (local: (xs: T[]) => T[], remote: () => PromiseLike<{ error: { message: string } | null }>, what: string) => {
     setRows(local);
     if (isDemo) return true;
-    const { error } = await remote();
+    let error: { message: string } | null;
+    try { error = (await remote()).error; } catch (e) { error = { message: e instanceof Error ? e.message : String(e) }; }
     if (error) { showError(`${what} 실패`, new Error(error.message)); await loadRef.current(); return false; }
     return true;
   }, [isDemo]);
 
-  return { rows, setRows, loaded, write, reload: () => loadRef.current(), demo: isDemo, tripId };
+  return { rows, setRows, loaded: status === 'live' || status === 'cached', status, savedAt, write, reload: () => loadRef.current(), demo: isDemo, tripId };
 }
 
 // ───────────────────────── 준비물 ─────────────────────────
@@ -99,7 +126,7 @@ export function useTodos() {
   const update = (id: string, patch: { title?: string; assignee?: string | null }) =>
     t.write((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)), () => supabase.from('todos').update(patch).eq('id', id), '고치기');
   const remove = (id: string) => t.write((xs) => xs.filter((x) => x.id !== id), () => supabase.from('todos').delete().eq('id', id), '지우기');
-  return { todos: t.rows, loaded: t.loaded, add, toggle, update, remove };
+  return { todos: t.rows, loaded: t.loaded, status: t.status, savedAt: t.savedAt, add, toggle, update, remove };
 }
 
 // ───────────────────────── 정산 ─────────────────────────
@@ -173,7 +200,7 @@ export function useExpenses() {
   const update = (id: string, e: ExpenseInput) =>
     t.write((xs) => xs.map((x) => (x.id === id ? { ...x, ...e } : x)), () => supabase.from('expenses').update(toRow(e)).eq('id', id), '지출 고치기');
   const remove = (id: string) => t.write((xs) => xs.filter((x) => x.id !== id), () => supabase.from('expenses').delete().eq('id', id), '지출 지우기');
-  return { expenses, loaded: t.loaded, add, update, remove, uploadReceipt };
+  return { expenses, loaded: t.loaded, status: t.status, savedAt: t.savedAt, add, update, remove, uploadReceipt };
 }
 
 /** 멤버별 받을 돈(+) / 줄 돈(-), 원 단위 */
@@ -282,7 +309,7 @@ export function usePhotos() {
     const ok = await t.write((xs) => xs.filter((x) => x.id !== p.id), () => supabase.from('photos').delete().eq('id', p.id), '사진 지우기');
     if (ok && !t.demo) await supabase.storage.from('trip-photos').remove([p.path, thumbPath(p.path)]);
   };
-  return { photos, loaded: t.loaded, upload, setCaption, remove };
+  return { photos, loaded: t.loaded, status: t.status, savedAt: t.savedAt, upload, setCaption, remove };
 }
 
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif' };
