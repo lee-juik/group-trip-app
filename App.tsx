@@ -12,6 +12,7 @@ import { PressableScale } from './src/components/PressableScale';
 import { Sheet } from './src/components/Sheet';
 import { TabBar, TabDef } from './src/components/TabBar';
 import { fontMap } from './src/fonts';
+import { useBackClose } from './src/lib/back';
 import { useChat, useUnread } from './src/lib/chat';
 import { removeMember } from './src/lib/remote';
 import { confirmAsync, hhmm, showError } from './src/lib/util';
@@ -32,6 +33,8 @@ function Shell() {
   const { state, dispatch } = useTrip();
   const [tab, setTab] = useState('pool');
   const [membersOpen, setMembersOpen] = useState(false);
+  // 다른 탭에서 뒤로가기를 누르면 앱이 꺼지지 않고 첫 탭(모아보기)으로 돌아온다
+  useBackClose(tab !== 'pool', () => setTab('pool'));
   const { mode, leave } = useSession();
   const demo = mode === 'demo';
   const [copied, setCopied] = useState(false);
