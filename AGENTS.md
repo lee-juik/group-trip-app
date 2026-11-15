@@ -25,7 +25,9 @@ Run lint and typecheck before declaring any task done.
 
 ## This project
 
-- No Expo Router: `App.tsx` renders a single tab shell (모아보기/투표/일정/수다) with its own `useState` tab. Do not add `src/app/`.
+- No Expo Router: `App.tsx` renders a single tab shell (모아보기/투표/일정/함께/수다) with its own `useState` tab. Do not add `src/app/`.
+- 함께 tab (`src/screens/TogetherScreen.tsx`): 준비물/정산/사진. Data lives outside the store in `src/lib/together.ts` (per-table load + realtime, like `chat.ts`). Photos go to the private storage bucket `trip-photos`: original file untouched at `<trip_id>/<id>.<ext>` plus a 1200px preview `<id>_s.jpg` (web only).
+- Transit display helpers (line colors, station JA/EN names, transfer tips) are in `src/lib/stations.ts`.
 - Backend is Supabase (`src/lib/supabase.ts`, `remote.ts`, `chat.ts`); state + optimistic writes live in `src/store.tsx` (reducer → `sendToServer` → `refresh`). New rows get their uuid on the client (`withIds`).
 - Deployed as a PWA on GitHub Pages from `main` (`.github/workflows/pages.yml` runs `tsc --noEmit` then `expo export --platform web` with `EXPO_BASE_URL=/group-trip-app`). Commits to `main` go live.
 - DB changes: write SQL under `supabase/migrations/` (CREATE / ALTER / CREATE OR REPLACE only; never DROP/DELETE/REVOKE without the owner's go-ahead) and apply with the Supabase MCP `apply_migration`. Keep `0001_schema_snapshot.sql` in sync.

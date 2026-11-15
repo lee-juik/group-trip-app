@@ -1,3 +1,4 @@
+import * as Clipboard from 'expo-clipboard';
 import { useMemo, useState } from 'react';
 import { Linking, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
@@ -74,6 +75,40 @@ const Tag = ({ children }: { children: string }) => (
   <Text style={{ fontFamily: J, fontSize: 12, color: c.lilacDeep, backgroundColor: c.lilac, borderRadius: 12, paddingVertical: 5, paddingHorizontal: 10, overflow: 'hidden' }}>{children}</Text>
 );
 
+/**
+ * 숙소 카드: 예약 사이트 최저가 비교 링크. 여기어때는 공개 API·검색 주소가 없어서
+ * 숙소 이름을 복사해 두고 해외 숙소 화면을 연다 (검색창에 붙여넣기).
+ */
+function HotelPriceLinks({ name, city, days }: { name: string; city: string; days: { date: string }[] }) {
+  const [copied, setCopied] = useState(false);
+  const inD = days[0]?.date, outD = days[days.length - 1]?.date;
+  const q = encodeURIComponent(name.replace(/\(.*?\)/g, '').trim() + ' ' + city);
+  const dates = inD && outD ? `&checkin=${inD}&checkout=${outD}` : '';
+  const links: { label: string; emoji: string; url: string; copy?: boolean }[] = [
+    { label: '여기어때', emoji: '🏨', url: 'https://www.yeogi.com/accommodation-overseas', copy: true },
+    { label: '구글 호텔', emoji: '🔎', url: `https://www.google.com/travel/search?q=${q}` },
+    { label: '부킹닷컴', emoji: '🛎', url: `https://www.booking.com/searchresults.ko.html?ss=${q}${dates}&group_adults=2&no_rooms=1` },
+    { label: '아고다', emoji: '🌏', url: `https://www.agoda.com/ko-kr/search?textToSearch=${q}` },
+  ];
+  const open = async (l: (typeof links)[number]) => {
+    if (l.copy) { await Clipboard.setStringAsync(name); setCopied(true); setTimeout(() => setCopied(false), 2500); }
+    openLink(l.url);
+  };
+  return (
+    <View style={{ backgroundColor: '#fff', borderRadius: 22, padding: 14, gap: 10 }}>
+      <Text style={t.label}>💸 최저가 비교하기</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {links.map((l) => (
+          <PressableScale key={l.label} scaleTo={0.95} onPress={() => open(l)} style={{ backgroundColor: c.lilac, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12 }}>
+            <Text style={{ fontFamily: J, fontSize: 14, color: c.lilacDeep }}>{l.emoji} {l.label}</Text>
+          </PressableScale>
+        ))}
+      </View>
+      <Text style={t.note}>{copied ? '숙소 이름을 복사했어요. 여기어때 검색창에 붙여넣어 주세요 📋' : '여행 날짜로 바로 찾아줘요. 가격은 사이트마다 달라요.'}</Text>
+    </View>
+  );
+}
+
 /** 카드를 누르면 열리는 자세히 보기: 메모 전체, 링크, 지도, 하트, 수정/지우기 */
 function PlaceDetail({ place, onClose, onEdit }: { place: PlaceCard | null; onClose: () => void; onEdit: (p: PlaceCard) => void }) {
   const { state, dispatch } = useTrip();
@@ -110,6 +145,7 @@ function PlaceDetail({ place, onClose, onEdit }: { place: PlaceCard | null; onCl
             <Button title="구글맵에서 열기" emoji="🗺" kind="soft" style={{ flex: 1, paddingVertical: 12 }} onPress={() => openLink(mapsUrl(p, trip.city))} />
             {!!p.sourceUrl && <Button title="링크 열기" emoji="🔗" kind="soft" style={{ flex: 1, paddingVertical: 12 }} onPress={() => openLink(p.sourceUrl!)} />}
           </View>
+          {p.category === '숙소' && <HotelPriceLinks name={p.name} city={trip.city} days={trip.days} />}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button title="수정" emoji="✏️" style={{ flex: 1 }} onPress={() => onEdit(p)} />
             <Button title="지우기" emoji="🗑" kind="soft" fg={c.pink} style={{ flex: 1 }} onPress={remove} />
