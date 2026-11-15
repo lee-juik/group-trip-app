@@ -14,11 +14,11 @@ function TabItem({ tab, active, onPress }: { tab: TabDef; active: boolean; onPre
   }, [active]);
   const st = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   return (
-    <Pressable onPress={() => { select(); onPress(); }} style={{ flex: active ? 1.6 : 1, alignItems: 'center' }}>
+    <Pressable onPress={() => { select(); onPress(); }} style={{ flex: active ? 2 : 1, alignItems: 'center' }}>
       <Animated.View layout={LinearTransition.springify().damping(18)}
-        style={[{ flexDirection: active ? 'row' : 'column', alignItems: 'center', gap: active ? 6 : 1, paddingVertical: active ? 10 : 4, paddingHorizontal: active ? 18 : 0, borderRadius: 24, backgroundColor: active ? c.ink : 'transparent' }, st]}>
+        style={[{ flexDirection: active ? 'row' : 'column', alignItems: 'center', gap: active ? 4 : 1, paddingVertical: active ? 10 : 4, paddingHorizontal: active ? 12 : 0, borderRadius: 24, backgroundColor: active ? c.ink : 'transparent' }, st]}>
         <Text style={{ fontSize: active ? 16 : 19 }}>{tab.emoji}</Text>
-        <Text style={{ fontFamily: J, fontSize: active ? 15 : 13, color: active ? '#fff' : c.sub }}>{tab.label}</Text>
+        <Text style={{ fontFamily: J, fontSize: active ? 14 : 12, color: active ? '#fff' : c.sub }}>{tab.label}</Text>
         {!!tab.badge && !active && (
           <Animated.View entering={ZoomIn.springify()} style={{ position: 'absolute', top: -2, right: -8, backgroundColor: c.pink, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#fff' }}>
             <Text style={{ color: '#fff', fontFamily: J, fontSize: 10 }}>{tab.badge}</Text>

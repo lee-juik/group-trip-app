@@ -18,6 +18,7 @@ import { confirmAsync, hhmm, showError } from './src/lib/util';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { PoolScreen } from './src/screens/PoolScreen';
+import { TogetherScreen } from './src/screens/TogetherScreen';
 import { VoteScreen } from './src/screens/VoteScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { TripProvider, useHasTrip, useSession, useTrip } from './src/store';
@@ -63,6 +64,7 @@ function Shell() {
     { key: 'pool', label: '모아보기', emoji: '📌' },
     { key: 'vote', label: '투표', emoji: '✅', badge: pendingVotes },
     { key: 'plan', label: '일정', emoji: '🗺️' },
+    { key: 'together', label: '함께', emoji: '🎒' },
     { key: 'chat', label: '수다', emoji: '💬', badge: unread },
   ];
 
@@ -73,6 +75,7 @@ function Shell() {
           {tab === 'pool' && <PoolScreen />}
           {tab === 'vote' && <VoteScreen />}
           {tab === 'plan' && <PlanScreen />}
+          {tab === 'together' && <TogetherScreen />}
           {tab === 'chat' && <ChatScreen chat={chat} />}
         </Animated.View>
         <SyncBanner />
