@@ -137,17 +137,20 @@ function TodoSection() {
 
 function ExpenseSheet({ visible, initial, onClose, store }: { visible: boolean; initial?: Expense; onClose: () => void; store: ReturnType<typeof useExpenses> }) {
   const { trip, meId } = useTrip().state;
-  const { expenses, add, update, remove } = store;
+  const { expenses, add, update, remove, uploadReceipt } = store;
   const { dates, def } = useTripDates();
+  const [receiptPreview, setReceiptPreview] = useState<string | undefined>();
+  const [receiptBusy, setReceiptBusy] = useState(false);
   const all = trip.members.map((m) => m.id);
   const lastRate = [...expenses].reverse().find((e) => e.currency === 'JPY')?.rate;
-  const blank = (): ExpenseInput => ({ title: '', amount: 0, currency: 'JPY', rate: lastRate ?? 9.3, paidBy: meId, splitAmong: all, category: '식비', spentOn: def, isTransfer: false });
+  const blank = (): ExpenseInput => ({ title: '', amount: 0, currency: 'JPY', rate: lastRate ?? 9.3, paidBy: meId, splitAmong: all, category: '식비', spentOn: def, isTransfer: false, receiptPath: null });
   const [f, setF] = useState<ExpenseInput>(blank);
   const [amountText, setAmountText] = useState('');
   const [rateText, setRateText] = useState('');
   useEffect(() => {
     if (!visible) return;
     const x = initial ? { ...initial } : blank();
+    setReceiptPreview(initial?.receiptUrl);
     setF(x); setAmountText(initial ? String(initial.amount) : ''); setRateText(String(x.rate));
     if (!initial && !lastRate) fetchRate('JPY').then((r) => { if (r) { setF((y) => ({ ...y, rate: r })); setRateText(String(r)); } });
   }, [visible]);
@@ -155,6 +158,18 @@ function ExpenseSheet({ visible, initial, onClose, store }: { visible: boolean; 
   const rate = f.currency === 'KRW' ? 1 : Number(rateText);
   const ok = f.title.trim() && amount > 0 && rate > 0 && f.splitAmong.length > 0;
   const each = ok ? krwOf({ amount, rate }) / f.splitAmong.length : 0;
+  /** 영수증: 카메라로 찍거나 앨범에서 고른다 */
+  const addReceipt = async (camera: boolean) => {
+    const opt: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1 };
+    if (camera && Platform.OS !== 'web' && !(await ImagePicker.requestCameraPermissionsAsync()).granted) return;
+    const r = camera ? await ImagePicker.launchCameraAsync(opt) : await ImagePicker.launchImageLibraryAsync(opt);
+    if (r.canceled || !r.assets[0]) return;
+    const a = r.assets[0];
+    setReceiptPreview(a.uri); setReceiptBusy(true);
+    const path = await uploadReceipt({ uri: a.uri, width: a.width, height: a.height, file: (a as { file?: Blob }).file, mimeType: a.mimeType, fileName: a.fileName });
+    setReceiptBusy(false);
+    if (path) setF((y) => ({ ...y, receiptPath: path })); else setReceiptPreview(undefined);
+  };
   const setCur = async (cur: Currency) => {
     setF({ ...f, currency: cur });
     if (cur === 'KRW') return;
@@ -202,7 +217,26 @@ function ExpenseSheet({ visible, initial, onClose, store }: { visible: boolean; 
           </View>
         </>
       )}
-      <Button title="저장" emoji="💾" disabled={!ok} onPress={save} />
+      <Text style={[t.small, { marginLeft: 6 }]}>영수증</Text>
+      {receiptPreview ? (
+        <View style={{ backgroundColor: '#fff', borderRadius: 22, padding: 10, gap: 8 }}>
+          <PressableScale scaleTo={0.98} onPress={() => receiptPreview && Linking.openURL(receiptPreview)}>
+            <Image source={{ uri: receiptPreview }} style={{ width: '100%', height: 260, borderRadius: 16, backgroundColor: c.lilac }} resizeMode="contain" />
+          </PressableScale>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Text style={[t.note, { flex: 1, alignSelf: 'center' }]}>{receiptBusy ? '올리는 중…' : '누르면 크게 볼 수 있어요'}</Text>
+            <PressableScale onPress={() => { setReceiptPreview(undefined); setF((y) => ({ ...y, receiptPath: null })); }} style={{ backgroundColor: c.pinkSoft, borderRadius: 12, paddingVertical: 7, paddingHorizontal: 12 }}>
+              <Text style={{ fontFamily: J, fontSize: 13, color: c.pink }}>빼기</Text>
+            </PressableScale>
+          </View>
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button title="찍기" emoji="📸" kind="soft" style={{ flex: 1, paddingVertical: 12 }} onPress={() => addReceipt(true)} />
+          <Button title="앨범에서" emoji="🧾" kind="soft" style={{ flex: 1, paddingVertical: 12 }} onPress={() => addReceipt(false)} />
+        </View>
+      )}
+      <Button title={receiptBusy ? '영수증 올리는 중…' : '저장'} emoji="💾" disabled={!ok || receiptBusy} onPress={save} />
       {initial && (
         <Button title="지우기" emoji="🗑" kind="soft" fg={c.pink} onPress={async () => {
           if (await confirmAsync(`'${initial.title}' 지출을 지울까요?`, undefined, '지우기', true)) { remove(initial.id); onClose(); }
@@ -279,7 +313,7 @@ function SettleSection() {
                     <Text style={{ fontSize: 18 }}>{e.isTransfer ? '💌' : catEmoji(e.category)}</Text>
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={t.label} numberOfLines={1}>{e.isTransfer ? `${name(e.paidBy)} → ${name(e.splitAmong[0])} 송금` : e.title}</Text>
+                    <Text style={t.label} numberOfLines={1}>{e.isTransfer ? `${name(e.paidBy)} → ${name(e.splitAmong[0])} 송금` : e.title}{e.receiptPath ? ' 🧾' : ''}</Text>
                     <Text style={{ fontFamily: G, fontSize: 12, color: c.sub }} numberOfLines={1}>
                       {e.isTransfer ? '정산 완료' : `${name(e.paidBy)} 결제 · ${e.splitAmong.length === trip.members.length ? '모두' : e.splitAmong.map(name).join(', ')}`}
                     </Text>

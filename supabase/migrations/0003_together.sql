@@ -88,3 +88,7 @@ create policy "trip photos delete own" on storage.objects for delete to authenti
 
 -- ───────────────────────── 4. 실시간 ─────────────────────────
 alter publication supabase_realtime add table public.todos, public.todo_checks, public.expenses, public.photos;
+
+-- ───────────────────────── 5. 영수증 (2026-11-15 추가) ─────────────────────────
+-- 정산 지출에 붙이는 영수증 사진. 같은 버킷의 <trip_id>/receipts/<id>.<ext>
+alter table public.expenses add column if not exists receipt_path text;
