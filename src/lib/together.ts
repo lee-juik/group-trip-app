@@ -193,9 +193,14 @@ export async function fetchRate(cur: Currency): Promise<number | undefined> {
 
 // ───────────────────────── 사진 ─────────────────────────
 
-export interface Photo { id: string; memberId: string | null; path: string; caption: string | null; takenOn: string; placeId: string | null; width?: number; height?: number; createdAt: string; url?: string }
+export interface Photo { id: string; memberId: string | null; path: string; caption: string | null; takenOn: string; placeId: string | null; width?: number; height?: number; createdAt: string; url?: string; thumbUrl?: string }
+
+/** 원본 옆에 같이 올리는 작은 미리보기 (앨범 화면용): abc.jpg → abc_s.jpg */
+export const thumbPath = (path: string) => path.replace(/\.[^./]+$/, '') + '_s.jpg';
 
 const demoPhotos = (): Photo[] => [];
+
+type Picked = { uri: string; width?: number; height?: number; file?: Blob; mimeType?: string; fileName?: string | null };
 
 export function usePhotos() {
   const { state } = useTrip();
@@ -205,35 +210,38 @@ export function usePhotos() {
     width: r.width ?? undefined, height: r.height ?? undefined, createdAt: r.created_at,
   }), demoPhotos, { col: 'created_at', asc: false });
 
-  // 비공개 버킷이라 볼 수 있는 임시 주소(하루짜리)를 받아 둔다
+  // 비공개 버킷이라 볼 수 있는 임시 주소(하루짜리)를 받아 둔다. 원본과 미리보기 둘 다
   const [urls, setUrls] = useState<Record<string, string>>({});
   useEffect(() => {
     if (t.demo) return;
-    const need = t.rows.filter((p) => !urls[p.path]).map((p) => p.path);
+    const need = t.rows.flatMap((p) => [p.path, thumbPath(p.path)]).filter((x) => !(x in urls));
     if (!need.length) return;
     supabase.storage.from('trip-photos').createSignedUrls(need, 60 * 60 * 24).then(({ data }) => {
       if (!data) return;
-      setUrls((u) => ({ ...u, ...Object.fromEntries(data.filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl as string])) }));
+      // 미리보기가 없는 사진(못 만든 경우)은 빈 값으로 표시해서 원본을 쓰게 한다
+      setUrls((u) => ({ ...u, ...Object.fromEntries(need.map((x) => [x, ''])), ...Object.fromEntries(data.filter((d) => d.signedUrl && d.path && !d.error).map((d) => [d.path!, d.signedUrl as string])) }));
     });
   }, [t.rows, t.demo]);
 
-  const photos = t.rows.map((p) => ({ ...p, url: p.url ?? urls[p.path] }));
+  const photos = t.rows.map((p) => ({ ...p, url: p.url ?? (urls[p.path] || undefined), thumbUrl: p.thumbUrl ?? (urls[thumbPath(p.path)] || undefined) }));
 
-  /** 고른 사진들을 줄여서 올린다 */
-  const upload = async (files: { uri: string; width?: number; height?: number; file?: Blob; mimeType?: string }[], takenOn: string, onProgress?: (done: number) => void) => {
+  /** 고른 사진을 원본 그대로 올리고, 앨범용 작은 미리보기를 하나 더 올린다 */
+  const upload = async (files: Picked[], takenOn: string, onProgress?: (done: number) => void) => {
     let done = 0;
     for (const f of files) {
       const id = uuid();
-      const small = await shrink(f);
+      const orig = await original(f);
+      const small = await thumbnail(orig.body, f);
       if (t.demo) {
-        t.setRows((xs) => [{ id, memberId: meId, path: id, caption: null, takenOn, placeId: null, width: small.width, height: small.height, createdAt: new Date().toISOString(), url: small.preview }, ...xs]);
+        t.setRows((xs) => [{ id, memberId: meId, path: id, caption: null, takenOn, placeId: null, width: small?.width ?? f.width, height: small?.height ?? f.height, createdAt: new Date().toISOString(), url: f.uri, thumbUrl: small?.preview }, ...xs]);
       } else {
-        const path = `${t.tripId}/${id}.jpg`;
-        const up = await supabase.storage.from('trip-photos').upload(path, small.body, { contentType: small.type, upsert: false });
-        if (up.error) { showError('사진 올리기 실패', new Error(up.error.message)); continue; }
-        const { error } = await supabase.from('photos').insert({ id, trip_id: t.tripId, member_id: meId, path, taken_on: takenOn, width: small.width, height: small.height });
+        const path = `${t.tripId}/${id}.${orig.ext}`;
+        const up = await supabase.storage.from('trip-photos').upload(path, orig.body, { contentType: orig.type, upsert: false });
+        if (up.error) { showError('사진 올리기 실패', new Error(/size|large/i.test(up.error.message) ? '사진 한 장이 너무 커요 (50MB 넘음).' : up.error.message)); continue; }
+        if (small) await supabase.storage.from('trip-photos').upload(thumbPath(path), small.body, { contentType: 'image/jpeg', upsert: true });
+        const { error } = await supabase.from('photos').insert({ id, trip_id: t.tripId, member_id: meId, path, taken_on: takenOn, width: f.width ?? small?.fullW, height: f.height ?? small?.fullH });
         if (error) { showError('사진 올리기 실패', new Error(error.message)); continue; }
-        setUrls((u) => ({ ...u, [path]: small.preview }));
+        setUrls((u) => ({ ...u, ...(small ? { [thumbPath(path)]: small.preview } : {}) }));
       }
       done++; onProgress?.(done);
     }
@@ -244,29 +252,39 @@ export function usePhotos() {
     t.write((xs) => xs.map((x) => (x.id === p.id ? { ...x, caption } : x)), () => supabase.from('photos').update({ caption: caption || null }).eq('id', p.id), '설명 저장');
   const remove = async (p: Photo) => {
     const ok = await t.write((xs) => xs.filter((x) => x.id !== p.id), () => supabase.from('photos').delete().eq('id', p.id), '사진 지우기');
-    if (ok && !t.demo) await supabase.storage.from('trip-photos').remove([p.path]);
+    if (ok && !t.demo) await supabase.storage.from('trip-photos').remove([p.path, thumbPath(p.path)]);
   };
   return { photos, loaded: t.loaded, upload, setCaption, remove };
 }
 
-/** 긴 변 1600px JPEG 로 줄인다 (웹). 앱에선 그대로 */
-async function shrink(f: { uri: string; width?: number; height?: number; file?: Blob; mimeType?: string }): Promise<{ body: Blob | ArrayBuffer; type: string; width?: number; height?: number; preview: string }> {
+const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif' };
+
+/** 고른 파일 그대로 (다시 압축하지 않는다) */
+async function original(f: Picked): Promise<{ body: Blob | ArrayBuffer; type: string; ext: string }> {
   if (Platform.OS !== 'web') {
-    const buf = await (await fetch(f.uri)).arrayBuffer();
-    return { body: buf, type: f.mimeType ?? 'image/jpeg', width: f.width, height: f.height, preview: f.uri };
+    const body = await (await fetch(f.uri)).arrayBuffer();
+    const type = f.mimeType ?? 'image/jpeg';
+    return { body, type, ext: EXT[type] ?? 'jpg' };
   }
-  const src = f.file ?? (await (await fetch(f.uri)).blob());
+  const body = f.file ?? (await (await fetch(f.uri)).blob());
+  const type = body.type || f.mimeType || 'image/jpeg';
+  const fromName = f.fileName?.split('.').pop()?.toLowerCase();
+  return { body, type, ext: EXT[type] ?? (fromName && fromName.length <= 4 ? fromName : 'jpg') };
+}
+
+/** 앨범용 미리보기: 긴 변 1200px JPEG (웹에서만 만든다). 못 읽는 형식이면 없음 */
+async function thumbnail(body: Blob | ArrayBuffer, f: Picked): Promise<{ body: Blob; width: number; height: number; fullW: number; fullH: number; preview: string } | undefined> {
+  if (Platform.OS !== 'web' || !(body instanceof Blob)) return undefined;
   try {
-    const bmp = await createImageBitmap(src, { imageOrientation: 'from-image' } as ImageBitmapOptions);
-    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const bmp = await createImageBitmap(body, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+    const k = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
     const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     cv.getContext('2d')!.drawImage(bmp, 0, 0, w, h);
-    const blob = await new Promise<Blob>((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('사진 변환 실패'))), 'image/jpeg', 0.82));
-    return { body: blob, type: 'image/jpeg', width: w, height: h, preview: URL.createObjectURL(blob) };
+    const blob = await new Promise<Blob>((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('미리보기 실패'))), 'image/jpeg', 0.85));
+    return { body: blob, width: w, height: h, fullW: bmp.width, fullH: bmp.height, preview: URL.createObjectURL(blob) };
   } catch {
-    // HEIC 처럼 브라우저가 못 읽는 형식이면 원본 그대로
-    return { body: src, type: src.type || 'image/jpeg', width: f.width, height: f.height, preview: f.uri };
+    return undefined;
   }
 }

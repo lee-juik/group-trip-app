@@ -314,10 +314,10 @@ function PhotoSection() {
   const size = w ? (w - 12) / 3 : 0;
 
   const pick = async () => {
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 30, quality: 0.85 });
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 30, quality: 1 });
     if (r.canceled || !r.assets.length) return;
     setBusy({ done: 0, total: r.assets.length });
-    const n = await upload(r.assets.map((a) => ({ uri: a.uri, width: a.width, height: a.height, file: (a as { file?: Blob }).file, mimeType: a.mimeType })), day, (done) => setBusy({ done, total: r.assets.length }));
+    const n = await upload(r.assets.map((a) => ({ uri: a.uri, width: a.width, height: a.height, file: (a as { file?: Blob }).file, mimeType: a.mimeType, fileName: a.fileName })), day, (done) => setBusy({ done, total: r.assets.length }));
     setBusy(null);
     if (n) success();
   };
@@ -329,7 +329,7 @@ function PhotoSection() {
       <View style={[card, { backgroundColor: '#FFDDEB', gap: 4 }]}>
         <Text style={{ fontFamily: J, fontSize: 14, color: c.pink }}>우리 앨범</Text>
         <Text style={{ fontFamily: J, fontSize: 30, color: c.ink }}>{photos.length}장</Text>
-        <Text style={{ fontFamily: G, fontSize: 13, color: c.pink }}>올리면 같이 간 친구들이 바로 볼 수 있어요 (우리 방 멤버만)</Text>
+        <Text style={{ fontFamily: G, fontSize: 13, color: c.pink }}>원본 화질 그대로 올라가요. 우리 방 멤버만 볼 수 있어요</Text>
       </View>
       {dates.length > 1 && <DayTabs options={dates.map((d, i) => `${i + 1}일`)} index={Math.max(0, dates.indexOf(day))} onChange={(i) => setDay(dates[i])} />}
       <Button title={busy ? `올리는 중… ${busy.done}/${busy.total}` : `${dates.indexOf(day) >= 0 ? `${dates.indexOf(day) + 1}일차 ` : ''}사진 올리기`} emoji="📷" disabled={!!busy} onPress={pick} />
@@ -346,7 +346,7 @@ function PhotoSection() {
                 {list.map((p) => (
                   <PressableScale key={p.id} scaleTo={0.95} onPress={() => { setCap(p.caption ?? ''); setOpen(p); }}
                     style={{ width: size, height: size, borderRadius: 16, overflow: 'hidden', backgroundColor: c.lilac }}>
-                    {p.url ? <Animated.View entering={FadeIn} style={{ flex: 1 }}><Image source={{ uri: p.url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /></Animated.View>
+                    {p.thumbUrl || p.url ? <Animated.View entering={FadeIn} style={{ flex: 1 }}><Image source={{ uri: p.thumbUrl || p.url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /></Animated.View>
                       : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Text>🖼</Text></View>}
                   </PressableScale>
                 ))}
@@ -359,12 +359,12 @@ function PhotoSection() {
       <Sheet visible={!!cur} title={cur ? `${name(cur.memberId)} 님의 사진` : ''} onClose={() => setOpen(null)}>
         {cur && (
           <>
-            {cur.url && <Image source={{ uri: cur.url }} style={{ width: '100%', aspectRatio: cur.width && cur.height ? cur.width / cur.height : 1, borderRadius: 20, backgroundColor: c.lilac }} resizeMode="contain" />}
+            {(cur.thumbUrl || cur.url) && <Image source={{ uri: cur.thumbUrl || cur.url }} style={{ width: '100%', aspectRatio: cur.width && cur.height ? cur.width / cur.height : 1, borderRadius: 20, backgroundColor: c.lilac }} resizeMode="contain" />}
             {cur.memberId === meId ? (
               <Group><Field placeholder="한 줄 남기기 (예: 오타루 운하 야경 🏮)" value={caption} onChangeText={setCap} onBlur={() => caption !== (cur.caption ?? '') && setCaption(cur, caption.trim())} last /></Group>
             ) : !!cur.caption && <Text style={[t.body, { textAlign: 'center' }]}>{cur.caption}</Text>}
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {cur.url && <Button title={Platform.OS === 'web' ? '원본 열기 · 저장' : '원본 열기'} emoji="⬇️" kind="soft" style={{ flex: 1 }} onPress={() => Linking.openURL(cur.url!)} />}
+              {cur.url && <Button title="원본 열기 · 저장" emoji="⬇️" kind="soft" style={{ flex: 1 }} onPress={() => Linking.openURL(cur.url!)} />}
               {cur.memberId === meId && (
                 <Button title="지우기" emoji="🗑" kind="soft" fg={c.pink} style={{ flex: 1 }} onPress={async () => {
                   if (await confirmAsync('이 사진을 지울까요?', '친구들 앨범에서도 사라져요.', '지우기', true)) { remove(cur); setOpen(null); }

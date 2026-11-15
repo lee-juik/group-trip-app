@@ -56,7 +56,7 @@ create table if not exists public.photos (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips(id) on delete cascade,
   member_id uuid references public.members(id) on delete set null,
-  path text not null,             -- storage 'trip-photos' 버킷 안 경로: <trip_id>/<id>.jpg
+  path text not null,             -- storage 'trip-photos' 버킷 안 원본 경로: <trip_id>/<id>.<ext>  (미리보기: <id>_s.jpg)
   caption text check (caption is null or char_length(caption) <= 300),
   taken_on date not null default current_date,
   place_id uuid references public.places(id) on delete set null,
@@ -72,7 +72,7 @@ create policy "own photo delete" on public.photos for delete to authenticated us
 
 -- 비공개 버킷: 같은 방 멤버만 읽고 올린다 (경로 첫 폴더 = trip_id)
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('trip-photos', 'trip-photos', false, 10485760, array['image/jpeg','image/png','image/webp','image/heic','image/heif'])
+values ('trip-photos', 'trip-photos', false, 52428800, array['image/jpeg','image/png','image/webp','image/heic','image/heif'])
 on conflict (id) do nothing;
 
 create or replace function public.photo_trip(name text) returns uuid
