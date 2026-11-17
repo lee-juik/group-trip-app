@@ -1,9 +1,9 @@
 import * as Clipboard from 'expo-clipboard';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Platform, Share, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInLeft, FadeInRight, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from './src/components/Avatar';
 import { Button } from './src/components/Button';
@@ -63,6 +63,13 @@ function Shell() {
     setMembersOpen(false); leave();
   };
 
+  const order = ['pool', 'vote', 'plan', 'together', 'chat'];
+  // 오른쪽 탭으로 가면 화면이 오른쪽에서, 왼쪽 탭으로 가면 왼쪽에서 들어온다
+  const prevTab = useRef(tab);
+  const dir = order.indexOf(tab) >= order.indexOf(prevTab.current) ? 1 : -1;
+  useEffect(() => { prevTab.current = tab; }, [tab]);
+  const enter = (dir > 0 ? FadeInRight : FadeInLeft).duration(320);
+
   const tabs: TabDef[] = [
     { key: 'pool', label: '모아보기', emoji: '📌' },
     { key: 'vote', label: '투표', emoji: '✅', badge: pendingVotes },
@@ -74,7 +81,7 @@ function Shell() {
   return (
     <UIContext.Provider value={{ openMembers: () => setMembersOpen(true) }}>
       <View style={{ flex: 1, backgroundColor: c.bgTop }}>
-        <Animated.View key={tab} entering={FadeIn.duration(280)} style={{ flex: 1 }}>
+        <Animated.View key={tab} entering={enter} style={{ flex: 1 }}>
           {tab === 'pool' && <PoolScreen />}
           {tab === 'vote' && <VoteScreen />}
           {tab === 'plan' && <PlanScreen />}
@@ -90,10 +97,17 @@ function Shell() {
           ) : (
             <View style={{ backgroundColor: c.lilac, borderRadius: 26, padding: 18, gap: 10, alignItems: 'center' }}>
               <Text style={{ fontFamily: J, fontSize: 14, color: c.lilacDeep }}>친구한테 이 코드를 보내주세요</Text>
-              <PressableScale onPress={copyCode} scaleTo={0.96}>
+              <PressableScale onPress={copyCode} scaleTo={0.9}>
                 <Text style={{ fontFamily: J, fontSize: 40, letterSpacing: 8, color: c.ink }}>{code}</Text>
               </PressableScale>
-              <Text style={[t.note, { color: c.lilacDeep }]}>{copied ? '복사했어요! 📋' : '코드를 누르면 복사돼요'}</Text>
+              {copied ? (
+                <Animated.View key="copied" entering={ZoomIn.springify().damping(11).stiffness(260)}
+                  style={{ backgroundColor: c.mint, borderRadius: 14, paddingVertical: 5, paddingHorizontal: 12 }}>
+                  <Text style={{ fontFamily: J, fontSize: 14, color: c.green }}>✓ 복사했어요!</Text>
+                </Animated.View>
+              ) : (
+                <Animated.Text key="hint" entering={FadeIn.duration(200)} style={[t.note, { color: c.lilacDeep, paddingVertical: 5 }]}>코드를 누르면 복사돼요</Animated.Text>
+              )}
               <Button title="초대 메시지 보내기" emoji="💌" onPress={shareInvite} style={{ alignSelf: 'stretch' }} />
             </View>
           )}

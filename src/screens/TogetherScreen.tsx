@@ -4,6 +4,8 @@ import { Image, Linking, Platform, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
+import { CheckBox } from '../components/CheckBox';
+import { CountUp } from '../components/CountUp';
 import { DayTabs } from '../components/DayTabs';
 import { Field, Group } from '../components/Field';
 import { success } from '../components/haptics';
@@ -48,10 +50,7 @@ function TodoRow({ todo, members, meId, onToggle, onOpen }: { todo: Todo; member
   const canCheck = everyone || todo.assignee === meId;
   return (
     <Animated.View layout={LinearTransition.springify().damping(18)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14 }}>
-      <PressableScale onPress={onToggle} disabled={!canCheck} hitSlop={8}
-        style={{ width: 30, height: 30, borderRadius: 10, borderWidth: 2.5, borderColor: (everyone ? mine : done) ? c.green : c.line, backgroundColor: (everyone ? mine : done) ? c.mint : '#fff', alignItems: 'center', justifyContent: 'center', opacity: canCheck ? 1 : 0.5 }}>
-        {(everyone ? mine : done) && <Text style={{ fontFamily: J, fontSize: 16, color: c.green }}>✓</Text>}
-      </PressableScale>
+      <CheckBox on={everyone ? mine : done} disabled={!canCheck} onPress={onToggle} />
       <PressableScale scaleTo={0.98} onPress={onOpen} style={{ flex: 1, gap: 3 }}>
         <Text style={[t.label, done && { color: c.sub, textDecorationLine: 'line-through' }]}>{todo.title}</Text>
         <Text style={{ fontFamily: G, fontSize: 12, color: c.sub }}>{owner ? `👤 ${owner.name} 담당` : `👥 각자 챙기기 · ${todo.checks.length}/${members.length}`}</Text>
@@ -298,7 +297,7 @@ function SettleSection() {
       <LiveNote status={store.status} savedAt={store.savedAt} />
       <View style={[card, { backgroundColor: c.butter, gap: 6 }]}>
         <Text style={{ fontFamily: J, fontSize: 14, color: '#8A6410' }}>우리가 쓴 돈</Text>
-        <Text style={{ fontFamily: J, fontSize: 32, color: c.ink }}>{won(total)}</Text>
+        <CountUp value={total} format={won} style={{ fontFamily: J, fontSize: 32, color: c.ink }} />
         <Text style={{ fontFamily: G, fontSize: 13, color: '#8A6410' }}>내 몫 {won(myShare)} · {bal[meId] > 9 ? `받을 돈 ${won(bal[meId])}` : bal[meId] < -9 ? `줄 돈 ${won(-bal[meId])}` : '주고받을 돈 없음'}</Text>
         {byCat.length > 0 && (
           <View style={{ flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', marginTop: 6, backgroundColor: '#fff' }}>
